@@ -86,3 +86,5 @@ class ImageEditParamsStreaming(ImageEditParamsBase):
 
 
 ImageEditParams = Union[ImageEditParamsNonStreaming, ImageEditParamsStreaming]
+
+OpenAIServingRequest = Union[ImageEditParams, ImageGenerateParams]
