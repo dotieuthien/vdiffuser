@@ -1,0 +1,255 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Machine Learning / AI Models
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.pkl
+*.pickle
+*.onnx
+*.tflite
+*.pb
+models/
+checkpoints/
+weights/
+*.model
+*.joblib
+
+# Hugging Face cache
+.cache/
+transformers_cache/
+huggingface_cache/
+
+# Datasets
+data/
+datasets/
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.arrow
+
+# Images and media
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.svg
+*.mp4
+*.avi
+*.mov
+*.wav
+*.mp3
+generated_images/
+outputs/
+samples/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+logs/
+tmp/
+temp/
+
+# Configuration files with secrets
+config.yaml
+config.json
+secrets.json
+.secrets
+*.key
+*.pem
+
+# Docker
+.dockerignore
+Dockerfile.local
+docker-compose.override.yml
+
+# Wandb (Weights & Biases)
+wandb/
+
+# TensorBoard
+runs/
+tb_logs/
+
+# CUDA/GPU specific
+*.cubin
+*.fatbin
+*.ptx
+
+# Server and runtime files
+*.pid
+*.sock
+*.lock
+server.log
+error.log
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Custom VDiffuser ignores
+cache/
+image_cache/
+latent_cache/
+text_embeddings_cache/
+server_state/
+*.state
+benchmark_results/
+profiling_results/
