@@ -50,4 +50,5 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
     #     super().__init__(tokenizer_manager)
     #     self.template_manager = template_manager
 
-    
+    def _request_id_prefix(self) -> str:
+        return "image_edit_"

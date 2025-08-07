@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class OpenAIServingBase(ABC):
     """Abstract base class for OpenAI endpoint handlers"""
 
-    # def __init__(self, tokenizer_manager: TokenizerManager):
-    #     self.tokenizer_manager = tokenizer_manager
+    def __init__(self):
+        pass
 
     async def handle_request(
         self, request: OpenAIServingRequest, raw_request: Request
@@ -57,7 +57,7 @@ class OpenAIServingBase(ABC):
                 status_code=500,
             )
 
-    # @abstractmethod
+    @abstractmethod
     def _request_id_prefix(self) -> str:
         """Generate request ID based on request type"""
         pass
