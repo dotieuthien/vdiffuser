@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 import os
 from typing import Union, Optional, TYPE_CHECKING, Tuple, Mapping, IO, List, Dict, Literal, Any
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_serializer
 
 if TYPE_CHECKING:
     Base64FileInput = Union[IO[bytes], os.PathLike[str]]
@@ -106,3 +106,40 @@ class ModelCard(BaseModel):
 class ModelList(BaseModel):
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
+
+class ImageUsageInfo(BaseModel):
+    total_tokens: int
+    input_tokens: int
+    output_tokens: int
+    input_tokens_details: Optional[Dict[str, int]] = None
+
+class ImageResponseData(BaseModel):
+    b64_json: str
+
+class ImageGenerationResponse(BaseModel):
+    created: int = Field(default_factory=lambda: int(time.time()))
+    data: List[ImageResponseData]
+    usage: ImageUsageInfo
+
+class BaseImageEvent(BaseModel):
+    type: str
+
+class ImagePartialEvent(BaseImageEvent):
+    b64_json: str
+    partial_image_index: int
+
+class ImageCompletionEvent(BaseImageEvent):
+    b64_json: str
+    usage: Optional[ImageUsageInfo] = None
+
+class ImageGenerationPartialEvent(ImagePartialEvent):
+    type: Literal["image_generation.partial_image"] = "image_generation.partial_image"
+
+class ImageGenerationCompletedEvent(ImageCompletionEvent):
+    type: Literal["image_generation.completed"] = "image_generation.completed"
+
+class ImageEditPartialEvent(ImagePartialEvent):
+    type: Literal["image_edit.partial_image"] = "image_edit.partial_image"
+
+class ImageEditCompletedEvent(ImageCompletionEvent):
+    type: Literal["image_edit.completed"] = "image_edit.completed"
