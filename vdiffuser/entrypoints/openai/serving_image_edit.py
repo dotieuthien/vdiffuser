@@ -26,9 +26,9 @@ from sglang.srt.conversation import generate_chat_conv
 #     ToolCall,
 #     TopLogprob,
 # )
-from sglang.srt.entrypoints.openai.serving_base import OpenAIServingBase
-from sglang.srt.entrypoints.openai.usage_processor import UsageProcessor
-from sglang.srt.entrypoints.openai.utils import (
+from vdiffuser.entrypoints.openai.serving_base import OpenAIServingBase
+from vdiffuser.entrypoints.openai.usage_processor import UsageProcessor
+from vdiffuser.entrypoints.openai.utils import (
     process_hidden_states_from_ret,
     to_openai_style_logprobs,
 )

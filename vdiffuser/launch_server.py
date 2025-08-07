@@ -6,7 +6,7 @@ import logging
 import argparse
 from typing import Optional
 
-from sglang.srt.entrypoints.http_server import launch_server
+from vdiffuser.entrypoints.api_server import launch_server
 from sglang.srt.server_args import prepare_server_args
 from sglang.srt.utils import kill_process_tree
 

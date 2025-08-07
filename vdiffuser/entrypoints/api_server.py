@@ -30,9 +30,9 @@ from sglang.srt.disaggregation.utils import (
     register_disaggregation_server,
 )
 from sglang.srt.entrypoints.engine import _launch_subprocesses
-from sglang.srt.entrypoints.openai.protocol import ImageGenerateParams, ImageEditParams
-from sglang.srt.entrypoints.openai.serving_images_edit import OpenAIServingImagesEdit
-from sglang.srt.entrypoints.openai.serving_images_generate import OpenAIServingImagesGenerate
+from vdiffuser.entrypoints.openai.protocol import ImageGenerateParams, ImageEditParams, ErrorResponse, ModelCard, ModelList
+from vdiffuser.entrypoints.openai.serving_image_edit import OpenAIServingImagesEdit
+from vdiffuser.entrypoints.openai.serving_image_generate import OpenAIServingImagesGenerate
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 from sglang.srt.managers.io_struct import (
     AbortReq,
@@ -58,7 +58,6 @@ from sglang.srt.managers.io_struct import (
 from sglang.srt.managers.template_manager import TemplateManager
 from sglang.srt.managers.tokenizer_manager import ServerStatus, TokenizerManager
 from sglang.srt.metrics.func_timer import enable_func_timer
-from sglang.srt.reasoning_parser import ReasoningParser
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import (
     add_api_key_middleware,
@@ -632,17 +631,6 @@ async def openai_v1_images_generations(
 ):
     """OpenAI-compatible images generations endpoint."""
     return await raw_request.app.state.openai_serving_chat.handle_request(
-        request, raw_request
-    )
-
-@app.post(
-    "/v1/embeddings",
-    response_class=ORJSONResponse,
-    dependencies=[Depends(validate_json_request)],
-)
-async def openai_v1_embeddings(request: EmbeddingRequest, raw_request: Request):
-    """OpenAI-compatible embeddings endpoint."""
-    return await raw_request.app.state.openai_serving_embedding.handle_request(
         request, raw_request
     )
 

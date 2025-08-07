@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 from fastapi import HTTPException, Request
 from fastapi.responses import ORJSONResponse, StreamingResponse
 
-from sglang.srt.entrypoints.openai.protocol import ErrorResponse, OpenAIServingRequest
+from vdiffuser.entrypoints.openai.protocol import ErrorResponse, OpenAIServingRequest
 from sglang.srt.managers.io_struct import GenerateReqInput
 from sglang.srt.managers.tokenizer_manager import TokenizerManager
 
