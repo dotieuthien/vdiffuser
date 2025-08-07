@@ -6,7 +6,7 @@ import logging
 import argparse
 from typing import Optional
 
-from sglang.srt.entrypoints.http_server import launch_server
+from vdiffuser.entrypoints.api_server import launch_server
 from sglang.srt.server_args import prepare_server_args
 from sglang.srt.utils import kill_process_tree
 
@@ -109,20 +109,20 @@ def print_vdiffuser_info(server_args) -> None:
 if __name__ == "__main__":
     try:
         # Parse server arguments
-        server_args = prepare_server_args(sys.argv[1:])
+        # server_args = prepare_server_args(sys.argv[1:])
 
         # VDiffuser-specific validation and setup
-        validate_diffusion_args(server_args)
+        # validate_diffusion_args(server_args)
 
         # Setup model configuration
-        vdiffuser_config = setup_vdiffuser_config(server_args)
+        # vdiffuser_config = setup_vdiffuser_config(server_args)
 
         # Print server information
-        print_vdiffuser_info(server_args)
+        # print_vdiffuser_info(server_args)
 
         # Launch the server with VDiffuser configuration
         logger.info("Starting VDiffuser inference server...")
-        launch_server(server_args)
+        launch_server()
 
     except KeyboardInterrupt:
         logger.info("Server shutdown requested by user")
