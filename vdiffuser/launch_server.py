@@ -2,9 +2,6 @@
 
 import os
 import sys
-import logging
-import argparse
-from typing import Optional
 
 from vdiffuser.entrypoints.api_server import launch_server
 from vdiffuser.server_args import prepare_server_args
