@@ -19,7 +19,7 @@ import orjson
 import requests
 import uvicorn
 import uvloop
-from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, Form
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response, StreamingResponse
@@ -30,7 +30,7 @@ from sglang.srt.disaggregation.utils import (
     register_disaggregation_server,
 )
 from sglang.srt.entrypoints.engine import _launch_subprocesses
-from vdiffuser.entrypoints.openai.protocol import ImageGenerateParams, ImageEditParams, ErrorResponse, ModelCard, ModelList
+from vdiffuser.entrypoints.openai.protocol import ImageGenerateParams, ImageEditParams, ErrorResponse, ModelCard, ModelList, ImageEditParamsNonStreaming
 from vdiffuser.entrypoints.openai.serving_image_edit import OpenAIServingImagesEdit
 from vdiffuser.entrypoints.openai.serving_image_generate import OpenAIServingImagesGenerate
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
@@ -97,24 +97,24 @@ def set_global_state(global_state: _GlobalState):
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
     fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
-        _global_state.tokenizer_manager, _global_state.template_manager
+        # _global_state.tokenizer_manager, _global_state.template_manager
     )
     fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
-        _global_state.tokenizer_manager, _global_state.template_manager
+        # _global_state.tokenizer_manager, _global_state.template_manager
     )
 
-    server_args: ServerArgs = fast_api_app.server_args
-    if server_args.warmups is not None:
-        await execute_warmups(
-            server_args.disaggregation_mode,
-            server_args.warmups.split(","),
-            _global_state.tokenizer_manager,
-        )
-        logger.info("Warmup ended")
+    # server_args: ServerArgs = fast_api_app.server_args
+    # if server_args.warmups is not None:
+    #     await execute_warmups(
+    #         server_args.disaggregation_mode,
+    #         server_args.warmups.split(","),
+    #         _global_state.tokenizer_manager,
+    #     )
+    #     logger.info("Warmup ended")
 
-    warmup_thread = getattr(fast_api_app, "warmup_thread", None)
-    if warmup_thread is not None:
-        warmup_thread.start()
+    # warmup_thread = getattr(fast_api_app, "warmup_thread", None)
+    # if warmup_thread is not None:
+    #     warmup_thread.start()
     yield
 
 
@@ -616,21 +616,44 @@ async def continue_generation(request: Request):
 ##### OpenAI-compatible API endpoints #####
 
 
-@app.post("/v1/images/edits", dependencies=[Depends(validate_json_request)])
+@app.post("/v1/images/edits")
 async def openai_v1_images_edits(
-    request: ImageEditParams, raw_request: Request
+    image: UploadFile,
+    prompt: str = Form(...),
+    mask: Optional[UploadFile] = None,
+    model: str = Form("dall-e-2"),
+    n: int = Form(1),
+    size: str = Form("1024x1024"),
+    response_format: str = Form("url"),
+    user: Optional[str] = Form(None),
+    raw_request: Request = None
 ):
-    """OpenAI-compatible images edits endpoint."""
-    return await raw_request.app.state.openai_serving_chat.handle_request(
+    
+    image_content = await image.read()
+    mask_content = await mask.read() if mask else None
+        
+    request = ImageEditParamsNonStreaming(
+        image=image_content,
+        mask=mask_content,
+        prompt=prompt,
+        model=model,
+        n=n,
+        size=size,
+        response_format=response_format,
+        user=user,
+        stream=False
+    )
+    
+    return await raw_request.app.state.openai_serving_images_edit.handle_request(
         request, raw_request
     )
 
-@app.post("/v1/images/generations", dependencies=[Depends(validate_json_request)])
+@app.post("/v1/images/generations")
 async def openai_v1_images_generations(
     request: ImageGenerateParams, raw_request: Request
 ):
     """OpenAI-compatible images generations endpoint."""
-    return await raw_request.app.state.openai_serving_chat.handle_request(
+    return await raw_request.app.state.openai_serving_images_generate.handle_request(
         request, raw_request
     )
 
@@ -682,7 +705,7 @@ def _create_error_response(e):
 
 
 def launch_server(
-    server_args: ServerArgs,
+    server_args: ServerArgs = None,
     pipe_finish_writer: Optional[multiprocessing.connection.Connection] = None,
     launch_callback: Optional[Callable[[], None]] = None,
 ):
@@ -701,53 +724,53 @@ def launch_server(
     1. The HTTP server, Engine, and TokenizerManager both run in the main process.
     2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
     """
-    tokenizer_manager, template_manager, scheduler_info = _launch_subprocesses(
-        server_args=server_args
-    )
-    set_global_state(
-        _GlobalState(
-            tokenizer_manager=tokenizer_manager,
-            template_manager=template_manager,
-            scheduler_info=scheduler_info,
-        )
-    )
+    # tokenizer_manager, template_manager, scheduler_info = _launch_subprocesses(
+    #     server_args=server_args
+    # )
+    # set_global_state(
+    #     _GlobalState(
+    #         tokenizer_manager=tokenizer_manager,
+    #         template_manager=template_manager,
+    #         scheduler_info=scheduler_info,
+    #     )
+    # )
 
-    # Add api key authorization
-    if server_args.api_key:
-        add_api_key_middleware(app, server_args.api_key)
+    # # Add api key authorization
+    # if server_args.api_key:
+    #     add_api_key_middleware(app, server_args.api_key)
 
-    # Add prometheus middleware
-    if server_args.enable_metrics:
-        add_prometheus_middleware(app)
-        enable_func_timer()
+    # # Add prometheus middleware
+    # if server_args.enable_metrics:
+    #     add_prometheus_middleware(app)
+    #     enable_func_timer()
 
-    # Send a warmup request - we will create the thread launch it
-    # in the lifespan after all other warmups have fired.
-    warmup_thread = threading.Thread(
-        target=_wait_and_warmup,
-        args=(
-            server_args,
-            pipe_finish_writer,
-            launch_callback,
-        ),
-    )
-    app.warmup_thread = warmup_thread
+    # # Send a warmup request - we will create the thread launch it
+    # # in the lifespan after all other warmups have fired.
+    # warmup_thread = threading.Thread(
+    #     target=_wait_and_warmup,
+    #     args=(
+    #         server_args,
+    #         pipe_finish_writer,
+    #         launch_callback,
+    #     ),
+    # )
+    # app.warmup_thread = warmup_thread
 
-    try:
-        # Update logging configs
-        set_uvicorn_logging_configs()
-        app.server_args = server_args
+    # try:
+    #     # Update logging configs
+    #     set_uvicorn_logging_configs()
+        # app.server_args = server_args
         # Listen for HTTP requests
         uvicorn.run(
             app,
-            host=server_args.host,
-            port=server_args.port,
-            log_level=server_args.log_level_http or server_args.log_level,
+            host="0.0.0.0",
+            port=8000,
+            log_level="info",
             timeout_keep_alive=5,
             loop="uvloop",
         )
-    finally:
-        warmup_thread.join()
+    # finally:
+    #     warmup_thread.join()
 
 
 def _execute_server_warmup(

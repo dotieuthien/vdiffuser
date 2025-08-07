@@ -1,14 +1,16 @@
 from __future__ import annotations
 import time
 import os
-from typing import Union, Optional, TYPE_CHECKING, Tuple, Mapping, IO, List, Dict, Literal, Required, TypedDict
-from pydantic import BaseModel, Field
+from typing import Union, Optional, TYPE_CHECKING, Tuple, Mapping, IO, List, Dict, Literal, Any
+from pydantic import BaseModel, Field, model_validator
+
 if TYPE_CHECKING:
     Base64FileInput = Union[IO[bytes], os.PathLike[str]]
     FileContent = Union[IO[bytes], bytes, os.PathLike[str]]
 else:
     Base64FileInput = Union[IO[bytes], os.PathLike]
     FileContent = Union[IO[bytes], bytes, os.PathLike]
+
 FileTypes = Union[
     FileContent,
     Tuple[Optional[str], FileContent],
@@ -16,90 +18,75 @@ FileTypes = Union[
     Tuple[Optional[str], FileContent, Optional[str], Mapping[str, str]],
 ]
 
-from typing import Literal, TypeAlias
+ImageModel = Literal["dall-e-2", "dall-e-3", "gpt-image-1"]
 
-__all__ = ["ImageModel"]
-
-ImageModel: TypeAlias = Literal["dall-e-2", "dall-e-3", "gpt-image-1"]
-__all__ = ["ImageGenerateParamsBase", "ImageGenerateParamsNonStreaming", "ImageGenerateParamsStreaming"]
-
-
-class ImageGenerateParamsBase(TypedDict, total=False):
-    prompt: Required[str]
-    background: Optional[Literal["transparent", "opaque", "auto"]]
-    model: Union[str, ImageModel, None]
-    moderation: Optional[Literal["low", "auto"]]
-    n: Optional[int]
-    output_compression: Optional[int]
-    output_format: Optional[Literal["png", "jpeg", "webp"]]
-    partial_images: Optional[int]
-    quality: Optional[Literal["standard", "hd", "low", "medium", "high", "auto"]]
-    response_format: Optional[Literal["url", "b64_json"]]
+class ImageGenerateParamsBase(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
+    prompt: str
+    background: Optional[Literal["transparent", "opaque", "auto"]] = None
+    model: Optional[Union[str, ImageModel]] = None
+    moderation: Optional[Literal["low", "auto"]] = None
+    n: Optional[int] = Field(None, ge=1)
+    output_compression: Optional[int] = Field(None, ge=0, le=100)
+    output_format: Optional[Literal["png", "jpeg", "webp"]] = None
+    partial_images: Optional[int] = Field(None, ge=0)
+    quality: Optional[Literal["standard", "hd", "low", "medium", "high", "auto"]] = None
+    response_format: Optional[Literal["url", "b64_json"]] = None
     size: Optional[
         Literal["auto", "1024x1024", "1536x1024", "1024x1536", "256x256", "512x512", "1792x1024", "1024x1792"]
-    ]
-    style: Optional[Literal["vivid", "natural"]]
-    user: str
+    ] = None
+    style: Optional[Literal["vivid", "natural"]] = None
+    user: Optional[str] = None
 
-
-class ImageGenerateParamsNonStreaming(ImageGenerateParamsBase, total=False):
-    stream: Optional[Literal[False]]
-
+class ImageGenerateParamsNonStreaming(ImageGenerateParamsBase):
+    stream: Optional[Literal[False]] = False
 
 class ImageGenerateParamsStreaming(ImageGenerateParamsBase):
-    stream: Required[Literal[True]]
-
+    stream: Literal[True] = True
 
 ImageGenerateParams = Union[ImageGenerateParamsNonStreaming, ImageGenerateParamsStreaming]
 
-# Image edit parameters
-class ImageEditParamsBase(TypedDict, total=False):
-    image: Required[Union[FileTypes, List[FileTypes]]]
-    prompt: Required[str]
-    background: Optional[Literal["transparent", "opaque", "auto"]]
-    input_fidelity: Optional[Literal["high", "low"]]
-    mask: FileTypes
-    model: Union[str, ImageModel, None]
-    n: Optional[int]
-    output_compression: Optional[int]
-    output_format: Optional[Literal["png", "jpeg", "webp"]]
-    partial_images: Optional[int]
-    quality: Optional[Literal["standard", "low", "medium", "high", "auto"]]
-    response_format: Optional[Literal["url", "b64_json"]]
-    size: Optional[Literal["256x256", "512x512", "1024x1024", "1536x1024", "1024x1536", "auto"]]
-    user: str
+class ImageEditParamsBase(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
+    image: Union[FileTypes, List[FileTypes]]
+    prompt: str
+    background: Optional[Literal["transparent", "opaque", "auto"]] = None
+    input_fidelity: Optional[Literal["high", "low"]] = None
+    mask: Optional[FileTypes] = None
+    model: Optional[Union[str, ImageModel]] = None
+    n: Optional[int] = Field(None, ge=1)
+    output_compression: Optional[int] = Field(None, ge=0, le=100)
+    output_format: Optional[Literal["png", "jpeg", "webp"]] = None
+    partial_images: Optional[int] = Field(None, ge=0)
+    quality: Optional[Literal["standard", "low", "medium", "high", "auto"]] = None
+    response_format: Optional[Literal["url", "b64_json"]] = None
+    size: Optional[Literal["256x256", "512x512", "1024x1024", "1536x1024", "1024x1536", "auto"]] = None
+    user: Optional[str] = None
 
+    # @model_validator(mode='after')
+    # def validate_image_input(cls, values):
+    #     if not values.image:
+    #         raise ValueError("At least one image is required")
+    #     return values
 
-class ImageEditParamsNonStreaming(ImageEditParamsBase, total=False):
-    stream: Optional[Literal[False]]
-
+class ImageEditParamsNonStreaming(ImageEditParamsBase):
+    stream: Optional[Literal[False]] = False
 
 class ImageEditParamsStreaming(ImageEditParamsBase):
-    stream: Required[Literal[True]]
-
+    stream: Literal[True] = True
 
 ImageEditParams = Union[ImageEditParamsNonStreaming, ImageEditParamsStreaming]
 
 OpenAIServingRequest = Union[ImageEditParams, ImageGenerateParams]
 
-# Add missing classes for compatibility with utils.py
-class ChatCompletionRequest(BaseModel):
-    """Chat completion request model."""
-    return_hidden_states: Optional[bool] = False
-
-
-class CompletionRequest(BaseModel):
-    """Completion request model."""
-    return_hidden_states: Optional[bool] = False
-
 
 class LogProbs(BaseModel):
-    """Log probabilities model."""
     tokens: List[str] = Field(default_factory=list)
     token_logprobs: List[float] = Field(default_factory=list)
     text_offset: List[int] = Field(default_factory=list)
     top_logprobs: List[Optional[Dict[str, float]]] = Field(default_factory=list)
-
 
 class ErrorResponse(BaseModel):
     object: str = "error"
@@ -107,10 +94,8 @@ class ErrorResponse(BaseModel):
     type: str
     param: Optional[str] = None
     code: int
-    
-class ModelCard(BaseModel):
-    """Model cards."""
 
+class ModelCard(BaseModel):
     id: str
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -118,9 +103,6 @@ class ModelCard(BaseModel):
     root: Optional[str] = None
     max_model_len: Optional[int] = None
 
-
 class ModelList(BaseModel):
-    """Model list consists of model cards."""
-
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)

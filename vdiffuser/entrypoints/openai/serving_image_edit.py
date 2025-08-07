@@ -27,9 +27,7 @@ from sglang.srt.conversation import generate_chat_conv
 #     TopLogprob,
 # )
 from vdiffuser.entrypoints.openai.serving_base import OpenAIServingBase
-from vdiffuser.entrypoints.openai.usage_processor import UsageProcessor
 from vdiffuser.entrypoints.openai.utils import (
-    process_hidden_states_from_ret,
     to_openai_style_logprobs,
 )
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
@@ -45,11 +43,11 @@ logger = logging.getLogger(__name__)
 
 class OpenAIServingImagesEdit(OpenAIServingBase):
     """Handler for /v1/chat/completions requests"""
-
-    def __init__(
-        self, tokenizer_manager: TokenizerManager, template_manager: TemplateManager
-    ):
-        super().__init__(tokenizer_manager)
-        self.template_manager = template_manager
+    pass
+    # def __init__(
+    #     self, tokenizer_manager: TokenizerManager, template_manager: TemplateManager
+    # ):
+    #     super().__init__(tokenizer_manager)
+    #     self.template_manager = template_manager
 
     
