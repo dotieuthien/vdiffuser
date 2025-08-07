@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 
 class OpenAIServingImagesGenerate(OpenAIServingBase):
     """Handler for /v1/chat/completions requests"""
-    pass
     # def __init__(
     #     self, tokenizer_manager: TokenizerManager, template_manager: TemplateManager
     # ):
