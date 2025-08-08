@@ -1,7 +1,6 @@
 import json
 import logging
 import uuid
-import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
@@ -32,10 +31,8 @@ class OpenAIServingBase(ABC):
             if error_msg:
                 return self.create_error_response(error_msg)
 
-            # Convert to internal format (supports both sync and async implementations)
             adapted_request, processed_request = await self._convert_to_internal_request(request)
 
-            # Note(Xinyuan): raw_request below is only used for detecting the connection of the client
             if hasattr(request, "stream") and request.stream:
                 return await self._handle_streaming_request(
                     adapted_request, processed_request, raw_request
