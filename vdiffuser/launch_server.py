@@ -6,11 +6,11 @@ import logging
 import argparse
 from typing import Optional
 
-from vdiffuser.entrypoints.api_server import launch_server
+from entrypoints.api_server import launch_server
 from sglang.srt.server_args import prepare_server_args
 from sglang.srt.utils import kill_process_tree
 
-from vdiffuser.configs import SdxlConfig, QwenImageConfig, FluxConfig
+from configs import SdxlConfig, QwenImageConfig, FluxConfig
 
 # Configure logging for VDiffuser
 logging.basicConfig(

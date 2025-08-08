@@ -33,11 +33,8 @@ DUMMY_B64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/
 class OpenAIServingImagesEdit(OpenAIServingBase):
     """Handler for /v1/images/edits requests"""
 
-    def __init__(
-        self, tokenizer_manager: TokenizerManager, template_manager: TemplateManager
-    ):
-        super().__init__(tokenizer_manager)
-        self.template_manager = template_manager
+    def __init__(self):
+        pass
 
     def _request_id_prefix(self) -> str:
         return "image_edit_"
