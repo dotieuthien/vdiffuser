@@ -29,18 +29,13 @@ DUMMY_B64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/
 class OpenAIServingImagesGenerate(OpenAIServingBase):
     """Handler for /v1/images/generations requests"""
 
-    def __init__(
-        self,
-        tokenizer_manager: TokenizerManager,
-        template_manager: TemplateManager,
-    ):
-        super().__init__(tokenizer_manager)
-        self.template_manager = template_manager
+    def __init__(self):
+        pass
 
     def _request_id_prefix(self) -> str:
         return "image_generate-"
 
-    def _convert_to_internal_request(
+    async def _convert_to_internal_request(
         self,
         request: ImageGenerateParams,
     ) -> tuple[GenerateReqInput, ImageGenerateParams]:

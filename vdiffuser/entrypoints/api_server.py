@@ -96,12 +96,8 @@ def set_global_state(global_state: _GlobalState):
 @asynccontextmanager
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
-    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
-        # _global_state.tokenizer_manager, _global_state.template_manager
-    )
-    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
-        # _global_state.tokenizer_manager, _global_state.template_manager
-    )
+    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit()
+    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate()
 
     # server_args: ServerArgs = fast_api_app.server_args
     # if server_args.warmups is not None:
@@ -758,17 +754,17 @@ def launch_server(
 
     # try:
     #     # Update logging configs
-    #     set_uvicorn_logging_configs()
+    set_uvicorn_logging_configs()
         # app.server_args = server_args
-        # Listen for HTTP requests
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=8000,
-            log_level="info",
-            timeout_keep_alive=5,
-            loop="uvloop",
-        )
+    # Listen for HTTP requests
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        timeout_keep_alive=5,
+        loop="uvloop",
+    )
     # finally:
     #     warmup_thread.join()
 
