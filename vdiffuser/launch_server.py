@@ -3,7 +3,7 @@
 import os
 import sys
 
-from vdiffuser.entrypoints.api_server import launch_server
+from vdiffuser.entrypoints.http_server import launch_server
 from vdiffuser.server_args import prepare_server_args
 from vdiffuser.utils import kill_process_tree
 

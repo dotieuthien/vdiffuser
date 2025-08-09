@@ -1,13 +1,12 @@
 import asyncio
 import dataclasses
-import json
 import logging
 import multiprocessing as multiprocessing
 import os
 import threading
 import time
 from http import HTTPStatus
-from typing import AsyncIterator, Callable, Dict, Optional, List, Any
+from typing import Callable, Dict, Optional, List, Any
 
 # Fix a bug of Python threading
 setattr(threading, "_register_atexit", lambda *args, **kwargs: None)
@@ -15,7 +14,6 @@ setattr(threading, "_register_atexit", lambda *args, **kwargs: None)
 from contextlib import asynccontextmanager
 
 import numpy as np
-import orjson
 import requests
 import uvicorn
 import uvloop
@@ -24,17 +22,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response, StreamingResponse
 
-from sglang.srt.disaggregation.utils import (
-    FAKE_BOOTSTRAP_HOST,
-    DisaggregationMode,
-    register_disaggregation_server,
+from vdiffuser.entrypoints.engine import _launch_subprocesses
+from vdiffuser.entrypoints.openai.protocol import (
+    ImageGenerateRequest, 
+    ImageEditRequest, 
+    ErrorResponse, 
+    ModelCard, 
+    ModelList, 
+    ImageEditParamsNonStreaming
 )
-from sglang.srt.entrypoints.engine import _launch_subprocesses
-from vdiffuser.entrypoints.openai.protocol import ImageGenerateParams, ImageEditParams, ErrorResponse, ModelCard, ModelList, ImageEditParamsNonStreaming
-from vdiffuser.entrypoints.openai.serving_image_edit import OpenAIServingImagesEdit
 from vdiffuser.entrypoints.openai.serving_image_generate import OpenAIServingImagesGenerate
-from sglang.srt.function_call.function_call_parser import FunctionCallParser
-from sglang.srt.managers.io_struct import (
+from vdiffuser.entrypoints.openai.serving_image_edit import OpenAIServingImagesEdit
+from vdiffuser.managers.io_struct import (
     AbortReq,
     CloseSessionReqInput,
     ConfigureLoggingReq,
@@ -55,11 +54,10 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromTensorReqInput,
 )
-from sglang.srt.managers.template_manager import TemplateManager
-from sglang.srt.managers.tokenizer_manager import ServerStatus, TokenizerManager
-from sglang.srt.metrics.func_timer import enable_func_timer
-from sglang.srt.server_args import ServerArgs
-from sglang.srt.utils import (
+from vdiffuser.managers.template_manager import TemplateManager
+from vdiffuser.metrics.func_timer import enable_func_timer
+from vdiffuser.server_args import ServerArgs
+from vdiffuser.utils import (
     add_api_key_middleware,
     add_prometheus_middleware,
     delete_directory,
@@ -67,20 +65,19 @@ from sglang.srt.utils import (
     kill_process_tree,
     set_uvicorn_logging_configs,
 )
-from sglang.srt.warmup import execute_warmups
-from sglang.utils import get_exception_traceback
-from sglang.version import __version__
+from vdiffuser.warmup import execute_warmups
+from vdiffuser.utils import get_exception_traceback
+from vdiffuser.version import __version__
 
 logger = logging.getLogger(__name__)
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-HEALTH_CHECK_TIMEOUT = int(os.getenv("SGLANG_HEALTH_CHECK_TIMEOUT", 20))
+HEALTH_CHECK_TIMEOUT = int(os.getenv("VDIFFUSER_HEALTH_CHECK_TIMEOUT", 20))
 
 
 # Store global states
 @dataclasses.dataclass
 class _GlobalState:
-    tokenizer_manager: TokenizerManager
     template_manager: TemplateManager
     scheduler_info: Dict
 
@@ -96,25 +93,27 @@ def set_global_state(global_state: _GlobalState):
 @asynccontextmanager
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
-    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
-        # _global_state.tokenizer_manager, _global_state.template_manager
-    )
-    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
-        # _global_state.tokenizer_manager, _global_state.template_manager
-    )
+    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit()
+    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate()
 
-    # server_args: ServerArgs = fast_api_app.server_args
-    # if server_args.warmups is not None:
-    #     await execute_warmups(
-    #         server_args.disaggregation_mode,
-    #         server_args.warmups.split(","),
-    #         _global_state.tokenizer_manager,
-    #     )
-    #     logger.info("Warmup ended")
+    server_args: ServerArgs = fast_api_app.server_args
+    
+    
+    try:
+        from vdiffuser.entrypoints.openai.serving_responses import OpenAIServingResponses
+        fast_api_app.state.openai_serving_responses = OpenAIServingResponses()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
+    
+    if server_args.warmups is not None:
+        await execute_warmups()
+        logger.info("Warmup ended")
 
-    # warmup_thread = getattr(fast_api_app, "warmup_thread", None)
-    # if warmup_thread is not None:
-    #     warmup_thread.start()
+    warmup_thread = getattr(fast_api_app, "warmup_thread", None)
+    if warmup_thread is not None:
+        warmup_thread.start()
     yield
 
 
@@ -191,7 +190,7 @@ async def validate_json_request(raw_request: Request):
 @app.get("/health_generate")
 async def health_generate(request: Request) -> Response:
     """
-    Check the health of the inference server by sending a special request to generate one token.
+    Check the health of the inference server by sending a special request to generate one image.
 
     If the server is running something, this request will be ignored, so it creates zero overhead.
     If the server is not running anything, this request will be run, so we know whether the server is healthy.
@@ -340,109 +339,109 @@ async def stop_profile_async():
     )
 
 
-@app.api_route("/start_expert_distribution_record", methods=["GET", "POST"])
-async def start_expert_distribution_record_async():
-    """Start recording the expert distribution. Clear the previous record if any."""
-    await _global_state.tokenizer_manager.start_expert_distribution_record()
-    return Response(
-        content="Start recording the expert distribution.\n",
-        status_code=200,
-    )
+# @app.api_route("/start_expert_distribution_record", methods=["GET", "POST"])
+# async def start_expert_distribution_record_async():
+#     """Start recording the expert distribution. Clear the previous record if any."""
+#     await _global_state.tokenizer_manager.start_expert_distribution_record()
+#     return Response(
+#         content="Start recording the expert distribution.\n",
+#         status_code=200,
+#     )
 
 
-@app.api_route("/stop_expert_distribution_record", methods=["GET", "POST"])
-async def stop_expert_distribution_record_async():
-    """Stop recording the expert distribution."""
-    await _global_state.tokenizer_manager.stop_expert_distribution_record()
-    return Response(
-        content="Stop recording the expert distribution.\n",
-        status_code=200,
-    )
+# @app.api_route("/stop_expert_distribution_record", methods=["GET", "POST"])
+# async def stop_expert_distribution_record_async():
+#     """Stop recording the expert distribution."""
+#     await _global_state.tokenizer_manager.stop_expert_distribution_record()
+#     return Response(
+#         content="Stop recording the expert distribution.\n",
+#         status_code=200,
+#     )
 
 
-@app.api_route("/dump_expert_distribution_record", methods=["GET", "POST"])
-async def dump_expert_distribution_record_async():
-    """Dump expert distribution record."""
-    await _global_state.tokenizer_manager.dump_expert_distribution_record()
-    return Response(
-        content="Dump expert distribution record.\n",
-        status_code=200,
-    )
+# @app.api_route("/dump_expert_distribution_record", methods=["GET", "POST"])
+# async def dump_expert_distribution_record_async():
+#     """Dump expert distribution record."""
+#     await _global_state.tokenizer_manager.dump_expert_distribution_record()
+#     return Response(
+#         content="Dump expert distribution record.\n",
+#         status_code=200,
+#     )
 
 
-@app.post("/update_weights_from_disk")
-async def update_weights_from_disk(obj: UpdateWeightFromDiskReqInput, request: Request):
-    """Update the weights from disk inplace without re-launching the server."""
-    success, message, num_paused_requests = (
-        await _global_state.tokenizer_manager.update_weights_from_disk(obj, request)
-    )
-    content = {
-        "success": success,
-        "message": message,
-        "num_paused_requests": num_paused_requests,
-    }
-    if success:
-        return ORJSONResponse(
-            content,
-            status_code=HTTPStatus.OK,
-        )
-    else:
-        return ORJSONResponse(
-            content,
-            status_code=HTTPStatus.BAD_REQUEST,
-        )
+# @app.post("/update_weights_from_disk")
+# async def update_weights_from_disk(obj: UpdateWeightFromDiskReqInput, request: Request):
+#     """Update the weights from disk inplace without re-launching the server."""
+#     success, message, num_paused_requests = (
+#         await _global_state.tokenizer_manager.update_weights_from_disk(obj, request)
+#     )
+#     content = {
+#         "success": success,
+#         "message": message,
+#         "num_paused_requests": num_paused_requests,
+#     }
+#     if success:
+#         return ORJSONResponse(
+#             content,
+#             status_code=HTTPStatus.OK,
+#         )
+#     else:
+#         return ORJSONResponse(
+#             content,
+#             status_code=HTTPStatus.BAD_REQUEST,
+#         )
 
 
-@app.post("/init_weights_update_group")
-async def init_weights_update_group(
-    obj: InitWeightsUpdateGroupReqInput, request: Request
-):
-    """Initialize the parameter update group."""
-    success, message = await _global_state.tokenizer_manager.init_weights_update_group(
-        obj, request
-    )
-    content = {"success": success, "message": message}
-    if success:
-        return ORJSONResponse(content, status_code=200)
-    else:
-        return ORJSONResponse(content, status_code=HTTPStatus.BAD_REQUEST)
+# @app.post("/init_weights_update_group")
+# async def init_weights_update_group(
+#     obj: InitWeightsUpdateGroupReqInput, request: Request
+# ):
+#     """Initialize the parameter update group."""
+#     success, message = await _global_state.tokenizer_manager.init_weights_update_group(
+#         obj, request
+#     )
+#     content = {"success": success, "message": message}
+#     if success:
+#         return ORJSONResponse(content, status_code=200)
+#     else:
+#         return ORJSONResponse(content, status_code=HTTPStatus.BAD_REQUEST)
 
 
-@app.post("/update_weights_from_tensor")
-async def update_weights_from_tensor(
-    obj: UpdateWeightsFromTensorReqInput, request: Request
-):
-    """Update the weights from tensor inplace without re-launching the server.
-    Notes:
-    1. Ensure that the model is on the correct device (e.g., GPU) before calling this endpoint. If the model is moved to the CPU unexpectedly, it may cause performance issues or runtime errors.
-    2. HTTP will transmit only the metadata of the tensor, while the tensor itself will be directly copied to the model.
-    3. Any binary data in the named tensors should be base64 encoded.
-    """
+# @app.post("/update_weights_from_tensor")
+# async def update_weights_from_tensor(
+#     obj: UpdateWeightsFromTensorReqInput, request: Request
+# ):
+#     """Update the weights from tensor inplace without re-launching the server.
+#     Notes:
+#     1. Ensure that the model is on the correct device (e.g., GPU) before calling this endpoint. If the model is moved to the CPU unexpectedly, it may cause performance issues or runtime errors.
+#     2. HTTP will transmit only the metadata of the tensor, while the tensor itself will be directly copied to the model.
+#     3. Any binary data in the named tensors should be base64 encoded.
+#     """
 
-    success, message = await _global_state.tokenizer_manager.update_weights_from_tensor(
-        obj, request
-    )
-    content = {"success": success, "message": message}
-    return ORJSONResponse(
-        content, status_code=200 if success else HTTPStatus.BAD_REQUEST
-    )
+#     success, message = await _global_state.tokenizer_manager.update_weights_from_tensor(
+#         obj, request
+#     )
+#     content = {"success": success, "message": message}
+#     return ORJSONResponse(
+#         content, status_code=200 if success else HTTPStatus.BAD_REQUEST
+#     )
 
 
-@app.post("/update_weights_from_distributed")
-async def update_weights_from_distributed(
-    obj: UpdateWeightsFromDistributedReqInput, request: Request
-):
-    """Update model parameter from distributed online."""
-    success, message = (
-        await _global_state.tokenizer_manager.update_weights_from_distributed(
-            obj, request
-        )
-    )
-    content = {"success": success, "message": message}
-    if success:
-        return ORJSONResponse(content, status_code=200)
-    else:
-        return ORJSONResponse(content, status_code=HTTPStatus.BAD_REQUEST)
+# @app.post("/update_weights_from_distributed")
+# async def update_weights_from_distributed(
+#     obj: UpdateWeightsFromDistributedReqInput, request: Request
+# ):
+#     """Update model parameter from distributed online."""
+#     success, message = (
+#         await _global_state.tokenizer_manager.update_weights_from_distributed(
+#             obj, request
+#         )
+#     )
+#     content = {"success": success, "message": message}
+#     if success:
+#         return ORJSONResponse(content, status_code=200)
+#     else:
+#         return ORJSONResponse(content, status_code=HTTPStatus.BAD_REQUEST)
 
 
 @app.api_route("/get_weights_by_name", methods=["GET", "POST"])
@@ -710,56 +709,55 @@ def launch_server(
     launch_callback: Optional[Callable[[], None]] = None,
 ):
     """
-    Launch SRT (SGLang Runtime) Server.
+    Launch VDiffuser Server.
 
-    The SRT server consists of an HTTP server and an SRT engine.
+    The VDiffuser server consists of an HTTP server and an VDiffuser engine.
 
     - HTTP server: A FastAPI server that routes requests to the engine.
     - The engine consists of three components:
-        1. TokenizerManager: Tokenizes the requests and sends them to the scheduler.
-        2. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
-        3. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
+        1. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
+        2. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
 
     Note:
-    1. The HTTP server, Engine, and TokenizerManager both run in the main process.
+    1. The HTTP server, Engine both run in the main process.
     2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
     """
-    # tokenizer_manager, template_manager, scheduler_info = _launch_subprocesses(
-    #     server_args=server_args
-    # )
-    # set_global_state(
-    #     _GlobalState(
-    #         tokenizer_manager=tokenizer_manager,
-    #         template_manager=template_manager,
-    #         scheduler_info=scheduler_info,
-    #     )
-    # )
+    tokenizer_manager, template_manager, scheduler_info = _launch_subprocesses(
+        server_args=server_args
+    )
+    set_global_state(
+        _GlobalState(
+            tokenizer_manager=tokenizer_manager,
+            template_manager=template_manager,
+            scheduler_info=scheduler_info,
+        )
+    )
 
-    # # Add api key authorization
-    # if server_args.api_key:
-    #     add_api_key_middleware(app, server_args.api_key)
+    # Add api key authorization
+    if server_args.api_key:
+        add_api_key_middleware(app, server_args.api_key)
 
-    # # Add prometheus middleware
-    # if server_args.enable_metrics:
-    #     add_prometheus_middleware(app)
-    #     enable_func_timer()
+    # Add prometheus middleware
+    if server_args.enable_metrics:
+        add_prometheus_middleware(app)
+        enable_func_timer()
 
-    # # Send a warmup request - we will create the thread launch it
-    # # in the lifespan after all other warmups have fired.
-    # warmup_thread = threading.Thread(
-    #     target=_wait_and_warmup,
-    #     args=(
-    #         server_args,
-    #         pipe_finish_writer,
-    #         launch_callback,
-    #     ),
-    # )
-    # app.warmup_thread = warmup_thread
+    # Send a warmup request - we will create the thread launch it
+    # in the lifespan after all other warmups have fired.
+    warmup_thread = threading.Thread(
+        target=_wait_and_warmup,
+        args=(
+            server_args,
+            pipe_finish_writer,
+            launch_callback,
+        ),
+    )
+    app.warmup_thread = warmup_thread
 
-    # try:
-    #     # Update logging configs
-    #     set_uvicorn_logging_configs()
-        # app.server_args = server_args
+    try:
+        # Update logging configs
+        set_uvicorn_logging_configs()
+        app.server_args = server_args
         # Listen for HTTP requests
         uvicorn.run(
             app,
@@ -769,8 +767,8 @@ def launch_server(
             timeout_keep_alive=5,
             loop="uvloop",
         )
-    # finally:
-    #     warmup_thread.join()
+    finally:
+        warmup_thread.join()
 
 
 def _execute_server_warmup(
