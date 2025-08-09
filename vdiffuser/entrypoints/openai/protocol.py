@@ -20,7 +20,7 @@ FileTypes = Union[
 
 ImageModel = Literal["dall-e-2", "dall-e-3", "gpt-image-1"]
 
-class ImageGenerateParamsBase(BaseModel):
+class ImageGenerateRequestBase(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
     
     prompt: str
@@ -39,15 +39,15 @@ class ImageGenerateParamsBase(BaseModel):
     style: Optional[Literal["vivid", "natural"]] = None
     user: Optional[str] = None
 
-class ImageGenerateParamsNonStreaming(ImageGenerateParamsBase):
+class ImageGenerateRequestNonStreaming(ImageGenerateRequestBase):
     stream: Optional[Literal[False]] = False
 
-class ImageGenerateParamsStreaming(ImageGenerateParamsBase):
+class ImageGenerateRequestStreaming(ImageGenerateRequestBase):
     stream: Literal[True] = True
 
-ImageGenerateParams = Union[ImageGenerateParamsNonStreaming, ImageGenerateParamsStreaming]
+ImageGenerateRequest = Union[ImageGenerateRequestNonStreaming, ImageGenerateRequestStreaming]
 
-class ImageEditParamsBase(BaseModel):
+class ImageEditRequestBase(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
     
     image: Union[FileTypes, List[FileTypes]]
@@ -71,15 +71,15 @@ class ImageEditParamsBase(BaseModel):
     #         raise ValueError("At least one image is required")
     #     return values
 
-class ImageEditParamsNonStreaming(ImageEditParamsBase):
+class ImageEditRequestNonStreaming(ImageEditRequestBase):
     stream: Optional[Literal[False]] = False
 
-class ImageEditParamsStreaming(ImageEditParamsBase):
+class ImageEditRequestStreaming(ImageEditRequestBase):
     stream: Literal[True] = True
 
-ImageEditParams = Union[ImageEditParamsNonStreaming, ImageEditParamsStreaming]
+ImageEditRequest = Union[ImageEditRequestNonStreaming, ImageEditRequestStreaming]
 
-OpenAIServingRequest = Union[ImageEditParams, ImageGenerateParams]
+OpenAIServingRequest = Union[ImageEditRequest, ImageGenerateRequest]
 
 
 class LogProbs(BaseModel):

@@ -26,6 +26,7 @@ import uvloop
 
 
 def _launch_subprocesses():
-    pass
+    template_manager, scheduler_info = None, None
+    return template_manager, scheduler_info
 
 

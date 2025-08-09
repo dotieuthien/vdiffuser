@@ -9,7 +9,7 @@ import tempfile
 from typing import List, Literal, Optional, Union
 
 
-from vdiffuser.hf_diffusers_utils import get_config
+# from vdiffuser.hf_diffusers_utils import get_config
 from vdiffuser.utils import (
     get_device,
     get_device_memory_capacity,
@@ -1872,6 +1872,8 @@ class ServerArgs:
             model_override_args=json.loads(self.json_model_override_args),
             **kwargs,
         )
+        
+        hf_config = {}
         return hf_config
 
     def check_server_args(self):

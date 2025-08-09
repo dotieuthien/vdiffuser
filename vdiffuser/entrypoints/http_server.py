@@ -29,7 +29,6 @@ from vdiffuser.entrypoints.openai.protocol import (
     ErrorResponse, 
     ModelCard, 
     ModelList, 
-    ImageEditParamsNonStreaming
 )
 from vdiffuser.entrypoints.openai.serving_image_generate import OpenAIServingImagesGenerate
 from vdiffuser.entrypoints.openai.serving_image_edit import OpenAIServingImagesEdit
@@ -41,7 +40,7 @@ from vdiffuser.managers.io_struct import (
     GenerateReqInput,
     GetWeightsByNameReqInput,
     InitWeightsUpdateGroupReqInput,
-    LoadLoRAAdapterReqInput,
+    # LoadLoRAAdapterReqInput,
     OpenSessionReqInput,
     ParseFunctionCallReq,
     ProfileReqInput,
@@ -49,7 +48,7 @@ from vdiffuser.managers.io_struct import (
     ResumeMemoryOccupationReqInput,
     SetInternalStateReq,
     SlowDownReqInput,
-    UnloadLoRAAdapterReqInput,
+    # UnloadLoRAAdapterReqInput,
     UpdateWeightFromDiskReqInput,
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromTensorReqInput,
@@ -65,8 +64,8 @@ from vdiffuser.utils import (
     kill_process_tree,
     set_uvicorn_logging_configs,
 )
-from vdiffuser.warmup import execute_warmups
-from vdiffuser.utils import get_exception_traceback
+# from vdiffuser.warmup import execute_warmups
+# from vdiffuser.utils import get_exception_traceback
 from vdiffuser.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -93,8 +92,12 @@ def set_global_state(global_state: _GlobalState):
 @asynccontextmanager
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
-    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit()
-    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate()
+    fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
+        template_manager=_global_state.template_manager
+    )
+    fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
+        template_manager=_global_state.template_manager
+    )
 
     server_args: ServerArgs = fast_api_app.server_args
     
@@ -107,9 +110,9 @@ async def lifespan(fast_api_app: FastAPI):
         traceback.print_exc()
         logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
     
-    if server_args.warmups is not None:
-        await execute_warmups()
-        logger.info("Warmup ended")
+    # if server_args.warmups is not None:
+    #     # await execute_warmups()
+    #     logger.info("Warmup ended")
 
     warmup_thread = getattr(fast_api_app, "warmup_thread", None)
     if warmup_thread is not None:
@@ -119,7 +122,8 @@ async def lifespan(fast_api_app: FastAPI):
 
 # Fast API
 app = FastAPI(
-    lifespan=lifespan,
+    # lifespan=lifespan,
+    title="VDiffuser API",
     openapi_url=None if get_bool_env_var("DISABLE_OPENAPI_DOC") else "/openapi.json",
 )
 app.add_middleware(
@@ -492,38 +496,38 @@ async def slow_down(obj: SlowDownReqInput, request: Request):
         return _create_error_response(e)
 
 
-@app.api_route("/load_lora_adapter", methods=["POST"])
-async def load_lora_adapter(obj: LoadLoRAAdapterReqInput, request: Request):
-    """Load a new LoRA adapter without re-launching the server."""
-    result = await _global_state.tokenizer_manager.load_lora_adapter(obj, request)
+# @app.api_route("/load_lora_adapter", methods=["POST"])
+# async def load_lora_adapter(obj: LoadLoRAAdapterReqInput, request: Request):
+#     """Load a new LoRA adapter without re-launching the server."""
+#     result = await _global_state.tokenizer_manager.load_lora_adapter(obj, request)
 
-    if result.success:
-        return ORJSONResponse(
-            result,
-            status_code=HTTPStatus.OK,
-        )
-    else:
-        return ORJSONResponse(
-            result,
-            status_code=HTTPStatus.BAD_REQUEST,
-        )
+#     if result.success:
+#         return ORJSONResponse(
+#             result,
+#             status_code=HTTPStatus.OK,
+#         )
+#     else:
+#         return ORJSONResponse(
+#             result,
+#             status_code=HTTPStatus.BAD_REQUEST,
+#         )
 
 
-@app.api_route("/unload_lora_adapter", methods=["POST"])
-async def unload_lora_adapter(obj: UnloadLoRAAdapterReqInput, request: Request):
-    """Load a new LoRA adapter without re-launching the server."""
-    result = await _global_state.tokenizer_manager.unload_lora_adapter(obj, request)
+# @app.api_route("/unload_lora_adapter", methods=["POST"])
+# async def unload_lora_adapter(obj: UnloadLoRAAdapterReqInput, request: Request):
+#     """Load a new LoRA adapter without re-launching the server."""
+#     result = await _global_state.tokenizer_manager.unload_lora_adapter(obj, request)
 
-    if result.success:
-        return ORJSONResponse(
-            result,
-            status_code=HTTPStatus.OK,
-        )
-    else:
-        return ORJSONResponse(
-            result,
-            status_code=HTTPStatus.BAD_REQUEST,
-        )
+#     if result.success:
+#         return ORJSONResponse(
+#             result,
+#             status_code=HTTPStatus.OK,
+#         )
+#     else:
+#         return ORJSONResponse(
+#             result,
+#             status_code=HTTPStatus.BAD_REQUEST,
+#         )
 
 
 @app.api_route("/open_session", methods=["GET", "POST"])
@@ -631,7 +635,7 @@ async def openai_v1_images_edits(
     image_content = await image.read()
     mask_content = await mask.read() if mask else None
         
-    request = ImageEditParamsNonStreaming(
+    request = ImageEditRequest(
         image=image_content,
         mask=mask_content,
         prompt=prompt,
@@ -649,7 +653,7 @@ async def openai_v1_images_edits(
 
 @app.post("/v1/images/generations")
 async def openai_v1_images_generations(
-    request: ImageGenerateParams, raw_request: Request
+    request: ImageGenerateRequest, raw_request: Request
 ):
     """OpenAI-compatible images generations endpoint."""
     return await raw_request.app.state.openai_serving_images_generate.handle_request(
@@ -722,37 +726,36 @@ def launch_server(
     1. The HTTP server, Engine both run in the main process.
     2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
     """
-    tokenizer_manager, template_manager, scheduler_info = _launch_subprocesses(
-        server_args=server_args
+    template_manager, scheduler_info = _launch_subprocesses(
+        # server_args=server_args
     )
     set_global_state(
         _GlobalState(
-            tokenizer_manager=tokenizer_manager,
             template_manager=template_manager,
             scheduler_info=scheduler_info,
         )
     )
 
-    # Add api key authorization
-    if server_args.api_key:
-        add_api_key_middleware(app, server_args.api_key)
+    # # Add api key authorization
+    # if server_args.api_key:
+    #     add_api_key_middleware(app, server_args.api_key)
 
-    # Add prometheus middleware
-    if server_args.enable_metrics:
-        add_prometheus_middleware(app)
-        enable_func_timer()
+    # # Add prometheus middleware
+    # if server_args.enable_metrics:
+    #     add_prometheus_middleware(app)
+    #     enable_func_timer()
 
-    # Send a warmup request - we will create the thread launch it
-    # in the lifespan after all other warmups have fired.
-    warmup_thread = threading.Thread(
-        target=_wait_and_warmup,
-        args=(
-            server_args,
-            pipe_finish_writer,
-            launch_callback,
-        ),
-    )
-    app.warmup_thread = warmup_thread
+    # # Send a warmup request - we will create the thread launch it
+    # # in the lifespan after all other warmups have fired.
+    # warmup_thread = threading.Thread(
+    #     target=_wait_and_warmup,
+    #     args=(
+    #         server_args,
+    #         pipe_finish_writer,
+    #         launch_callback,
+    #     ),
+    # )
+    # app.warmup_thread = warmup_thread
 
     try:
         # Update logging configs
@@ -768,7 +771,8 @@ def launch_server(
             loop="uvloop",
         )
     finally:
-        warmup_thread.join()
+        # warmup_thread.join()
+        pass
 
 
 def _execute_server_warmup(
@@ -790,7 +794,7 @@ def _execute_server_warmup(
             success = True
             break
         except (AssertionError, requests.exceptions.RequestException):
-            last_traceback = get_exception_traceback()
+            # last_traceback = get_exception_traceback()
             pass
 
     if not success:
@@ -878,7 +882,7 @@ def _execute_server_warmup(
                 _global_state.tokenizer_manager.server_status = ServerStatus.UnHealthy
 
     except Exception:
-        last_traceback = get_exception_traceback()
+        # last_traceback = get_exception_traceback()
         if pipe_finish_writer is not None:
             pipe_finish_writer.send(last_traceback)
         logger.error(f"Initialization failed. warmup error: {last_traceback}")
