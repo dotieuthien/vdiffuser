@@ -25,3 +25,8 @@ import torch
 import uvloop
 
 
+def _launch_subprocesses():
+    template_manager, scheduler_info = None, None
+    return template_manager, scheduler_info
+
+

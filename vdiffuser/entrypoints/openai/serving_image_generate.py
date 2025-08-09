@@ -8,7 +8,7 @@ from fastapi.responses import ORJSONResponse, StreamingResponse
 
 from vdiffuser.entrypoints.openai.protocol import (
     ErrorResponse,
-    ImageGenerateParams,
+    ImageGenerateRequest,
     ImageGenerationCompletedEvent,
     ImageGenerationPartialEvent,
     ImageGenerationResponse,
@@ -16,9 +16,8 @@ from vdiffuser.entrypoints.openai.protocol import (
     ImageUsageInfo,
 )
 from vdiffuser.entrypoints.openai.serving_base import OpenAIServingBase
-from sglang.srt.managers.io_struct import GenerateReqInput
-from sglang.srt.managers.template_manager import TemplateManager
-from sglang.srt.managers.tokenizer_manager import TokenizerManager
+from vdiffuser.managers.io_struct import GenerateReqInput
+from vdiffuser.managers.template_manager import TemplateManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +28,19 @@ DUMMY_B64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/
 class OpenAIServingImagesGenerate(OpenAIServingBase):
     """Handler for /v1/images/generations requests"""
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        template_manager: TemplateManager,
+    ):
+        self.template_manager = template_manager
 
     def _request_id_prefix(self) -> str:
         return "image_generate-"
 
     async def _convert_to_internal_request(
         self,
-        request: ImageGenerateParams,
-    ) -> tuple[GenerateReqInput, ImageGenerateParams]:
+        request: ImageGenerateRequest,
+    ) -> tuple[GenerateReqInput, ImageGenerateRequest]:
         """Convert OpenAI image generate request to internal format"""
 
         sampling_params = self._build_sampling_params(request)
@@ -54,7 +56,7 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
 
         return adapted_request, request
 
-    def _build_sampling_params(self, request: ImageGenerateParams) -> Dict[str, Any]:
+    def _build_sampling_params(self, request: ImageGenerateRequest) -> Dict[str, Any]:
         """Build sampling parameters for the request"""
         sampling_params = {
             "n": request.n,
@@ -75,7 +77,7 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
     async def _handle_streaming_request(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageGenerateParams,
+        request: ImageGenerateRequest,
         raw_request: Request,
     ) -> StreamingResponse:
         """Handle streaming image generation request"""
@@ -87,7 +89,7 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
     async def _generate_image_stream(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageGenerateParams,
+        request: ImageGenerateRequest,
         raw_request: Request,
     ) -> AsyncGenerator[str, None]:
         """Generate streaming image generation response"""
@@ -114,7 +116,7 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
     async def _handle_non_streaming_request(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageGenerateParams,
+        request: ImageGenerateRequest,
         raw_request: Request,
     ) -> Union[ImageGenerationResponse, ErrorResponse, ORJSONResponse]:
         """Handle non-streaming image generation request"""

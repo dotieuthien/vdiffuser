@@ -8,8 +8,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import ORJSONResponse, StreamingResponse
 
 from vdiffuser.entrypoints.openai.protocol import ErrorResponse, OpenAIServingRequest
-from sglang.srt.managers.io_struct import GenerateReqInput
-from sglang.srt.managers.tokenizer_manager import TokenizerManager
+from vdiffuser.managers.io_struct import GenerateReqInput
 
 logger = logging.getLogger(__name__)
 

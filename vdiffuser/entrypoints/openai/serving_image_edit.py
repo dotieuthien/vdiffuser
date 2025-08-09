@@ -13,16 +13,15 @@ from vdiffuser.entrypoints.openai.protocol import (
     ErrorResponse,
     FileTypes,
     ImageEditCompletedEvent,
-    ImageEditParams,
+    ImageEditRequest,
     ImageEditPartialEvent,
     ImageGenerationResponse,
     ImageResponseData,
     ImageUsageInfo,
 )
 from vdiffuser.entrypoints.openai.serving_base import OpenAIServingBase
-from sglang.srt.managers.io_struct import GenerateReqInput
-from sglang.srt.managers.template_manager import TemplateManager
-from sglang.srt.managers.tokenizer_manager import TokenizerManager
+from vdiffuser.managers.io_struct import GenerateReqInput
+from vdiffuser.managers.template_manager import TemplateManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,11 @@ DUMMY_B64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/
 class OpenAIServingImagesEdit(OpenAIServingBase):
     """Handler for /v1/images/edits requests"""
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        template_manager: TemplateManager
+    ):
+        self.template_manager = template_manager
 
     def _request_id_prefix(self) -> str:
         return "image_edit_"
@@ -63,8 +65,8 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
 
     async def _convert_to_internal_request(
         self,
-        request: ImageEditParams,
-    ) -> tuple[GenerateReqInput, ImageEditParams]:
+        request: ImageEditRequest,
+    ) -> tuple[GenerateReqInput, ImageEditRequest]:
         """Convert OpenAI image edit request to internal format"""
 
         image_b64_list = []
@@ -94,7 +96,7 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
 
         return adapted_request, request
 
-    def _build_sampling_params(self, request: ImageEditParams) -> Dict[str, Any]:
+    def _build_sampling_params(self, request: ImageEditRequest) -> Dict[str, Any]:
         """Build sampling parameters for the request"""
         sampling_params = {
             "n": request.n,
@@ -114,7 +116,7 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
     async def _handle_streaming_request(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageEditParams,
+        request: ImageEditRequest,
         raw_request: Request,
     ) -> StreamingResponse:
         """Handle streaming image edit request"""
@@ -126,7 +128,7 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
     async def _generate_image_stream(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageEditParams,
+        request: ImageEditRequest,
         raw_request: Request,
     ) -> AsyncGenerator[str, None]:
         """Generate streaming image edit response"""
@@ -153,7 +155,7 @@ class OpenAIServingImagesEdit(OpenAIServingBase):
     async def _handle_non_streaming_request(
         self,
         adapted_request: GenerateReqInput,
-        request: ImageEditParams,
+        request: ImageEditRequest,
         raw_request: Request,
     ) -> Union[ImageGenerationResponse, ErrorResponse, ORJSONResponse]:
         """Handle non-streaming image edit request"""
