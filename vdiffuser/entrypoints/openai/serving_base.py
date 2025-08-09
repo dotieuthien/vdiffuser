@@ -30,12 +30,8 @@ class OpenAIServingBase(ABC):
             if error_msg:
                 return self.create_error_response(error_msg)
 
-            # Convert to internal format
-            adapted_request, processed_request = self._convert_to_internal_request(
-                request
-            )
+            adapted_request, processed_request = await self._convert_to_internal_request(request)
 
-            # Note(Xinyuan): raw_request below is only used for detecting the connection of the client
             if hasattr(request, "stream") and request.stream:
                 return await self._handle_streaming_request(
                     adapted_request, processed_request, raw_request
@@ -72,8 +68,8 @@ class OpenAIServingBase(ABC):
 
         return f"{self._request_id_prefix()}{uuid.uuid4().hex}"
 
-    # @abstractmethod
-    def _convert_to_internal_request(
+    @abstractmethod
+    async def _convert_to_internal_request(
         self,
         request: OpenAIServingRequest,
     ) -> tuple[GenerateReqInput, OpenAIServingRequest]:

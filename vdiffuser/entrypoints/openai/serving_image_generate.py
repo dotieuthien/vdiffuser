@@ -37,7 +37,7 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
     def _request_id_prefix(self) -> str:
         return "image_generate-"
 
-    def _convert_to_internal_request(
+    async def _convert_to_internal_request(
         self,
         request: ImageGenerateRequest,
     ) -> tuple[GenerateReqInput, ImageGenerateRequest]:
