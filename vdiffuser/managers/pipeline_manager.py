@@ -24,6 +24,15 @@ class PipelineManager:
     interface for image generate and edit management.
     """
     def __init__(self, server_args: ServerArgs):
+        # Init inter-process communication
+        context = zmq.asyncio.Context(2)
+        self.recv_from_scheduler = get_zmq_socket(
+            context, zmq.PULL, port_args.scheduler_input_ipc_name, True
+        )
+        self.send_to_scheduler = get_zmq_socket(
+            context, zmq.PUSH, port_args.scheduler_input_ipc_name, True
+        )
+        
         # Read model args
         self.model_path = server_args.model_path
         self.pipeline = server_args.pipeline
@@ -31,9 +40,23 @@ class PipelineManager:
             server_args.pipeline,
             server_args.model_path,
         )
-
-    def run(self):
+        
+    def generate_request(
+        self,
+        obj,
+        created_time: Optional[float] = None,
+    ):
         pass
+
+    def _send_one_request(
+        self, 
+        obj,
+        created_time: Optional[float] = None,
+    ):
+        self.send_to_scheduler.send_json(request)
+
+    def _receive_one_request(self) -> dict:
+        return self.recv_from_scheduler.recv_json()
 
 
 def run_pipeline_process(

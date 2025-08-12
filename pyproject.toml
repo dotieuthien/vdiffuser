@@ -58,6 +58,9 @@ dependencies = [
     "torchvision",
     "cuda-python",
     "einops",
+    "diffusers",
+    "openai",
+    "accelerate",
 ]
 
 [tool.setuptools.packages.find]

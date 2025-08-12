@@ -57,15 +57,15 @@ def get_pipeline(
     try:
         print("Load pipeline ", pipeline_class)
         # Load the specific pipeline class
-        # pipeline = pipeline_class.from_pretrained(
-        #     model_name_or_path,
-        #     *args,
-        #     trust_remote_code=trust_remote_code,
-        #     revision=revision,
-        #     torch_dtype=torch_dtype,
-        #     **kwargs,
-        # )
-        pipeline = None
+        pipeline = pipeline_class.from_pretrained(
+            model_name_or_path,
+            *args,
+            trust_remote_code=trust_remote_code,
+            revision=revision,
+            torch_dtype=torch_dtype,
+            **kwargs,
+        )
+        # pipeline = None
     except Exception as e:
         err_msg = (
             f"Failed to load the diffusion pipeline '{pipeline_name}' from '{model_name_or_path}'. "

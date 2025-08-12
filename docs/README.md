@@ -16,5 +16,5 @@ pip install -e .
 
 ```bash
 # Launch the vdiffuser server with FLUX.1-dev model
-python -m vdiffuser.launch_server --model black-forest-labs/FLUX.1-dev --pipeline FluxPipeline
+python -m vdiffuser.launch_server --model GraydientPlatformAPI/boltning-hyperd-sdxl --pipeline StableDiffusionXLPipeline
 ```

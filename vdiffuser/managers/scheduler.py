@@ -24,6 +24,7 @@ from vdiffuser.utils import (
     get_exception_traceback,
     get_zmq_socket,
 )
+from vdiffuser.managers.tp_worker import TpWorker
 
 
 logger = logging.getLogger(__name__)
@@ -48,10 +49,10 @@ class Scheduler:
             context, zmq.PUSH, port_args.pipeline_manager_ipc_name, False
         )
         
-        # self.tp_worker = TpWorker(
-        #     server_args=server_args,
-        #     nccl_port=port_args.nccl_port,
-        # )
+        self.tp_worker = TpWorker(
+            server_args=server_args,
+            # nccl_port=port_args.nccl_port,
+        )
         
     # def init_memory_pool_and_cache(self):
     #     """Initialize memory pool and cache."""
