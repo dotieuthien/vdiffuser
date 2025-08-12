@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vdiffuser"
-version = "0.4.10.post2"
+name = "vdiffusers"
+version = "0.0.1"
 description = "VDiffuser is a fast serving framework for large language models and vision language models."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-runtime_common = [
+all = [
     "blobfile==3.0.0",
     "build",
     "compressed-tensors",
@@ -57,10 +57,7 @@ runtime_common = [
     "uvicorn",
     "uvloop",
     "xgrammar==0.1.22",
-]
-
-srt = [
-    "vdiffuser[runtime_common]",
+    "sglang[all]>=0.5.0rc0",
     "sgl-kernel==0.3.2",
     "torch==2.8.0",
     "torchaudio==2.8.0",
@@ -84,14 +81,16 @@ test = [
     "pytest",
 ]
 
-all = [
-    "vdiffuser[srt]",
-    "vdiffuser[openai]",
-    "vdiffuser[anthropic]",
-    "vdiffuser[litellm]",
-    "vdiffuser[torch_memory_saver]",
+[project.urls]
+"Homepage" = "https://github.com/sgl-project/sglang"
+"Bug Tracker" = "https://github.com/sgl-project/sglang/issues"
+
+[tool.setuptools.package-data]
+"sglang" = [
+    "srt/layers/moe/fused_moe_triton/configs/*/*.json",
+    "srt/layers/quantization/configs/*.json",
+    "srt/mem_cache/storage/hf3fs/hf3fs_utils.cpp",
 ]
-dev = ["vdiffuser[all]", "vdiffuser[test]"]
 
 [tool.setuptools.packages.find]
 exclude = [
