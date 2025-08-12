@@ -57,14 +57,11 @@ all = [
     "uvicorn",
     "uvloop",
     "xgrammar==0.1.22",
-    "sglang[all]>=0.5.0rc0",
-    "sgl-kernel==0.3.2",
     "torch==2.8.0",
     "torchaudio==2.8.0",
     "torchvision",
     "cuda-python",
     "einops",
-    "flashinfer_python==0.2.10",
 ]
 
 openai = ["openai>=1.0", "tiktoken"]
