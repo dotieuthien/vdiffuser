@@ -102,13 +102,13 @@ async def lifespan(fast_api_app: FastAPI):
     server_args: ServerArgs = fast_api_app.server_args
     
     
-    try:
-        from vdiffuser.entrypoints.openai.serving_responses import OpenAIServingResponses
-        fast_api_app.state.openai_serving_responses = OpenAIServingResponses()
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
+    # try:
+    #     from vdiffuser.entrypoints.openai.serving_responses import OpenAIServingResponses
+    #     fast_api_app.state.openai_serving_responses = OpenAIServingResponses()
+    # except Exception as e:
+    #     import traceback
+    #     traceback.print_exc()
+        # logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
     
     # if server_args.warmups is not None:
     #     # await execute_warmups()

@@ -29,58 +29,57 @@ class Scheduler:
         # Init inter-process communication
         context = zmq.Context(2)
         
-    def init_memory_pool_and_cache(self):
-        """Initialize memory pool and cache."""
-        pass
+    # def init_memory_pool_and_cache(self):
+    #     """Initialize memory pool and cache."""
+    #     pass
 
-    def event_loop(self):
-        """Event loop."""
-        pass
+    # def event_loop(self):
+    #     """Event loop."""
+    #     pass
 
-    def event_looop_overlap(self):
-        """Run the scheduler."""
-        pass
+    # def event_looop_overlap(self):
+    #     """Run the scheduler."""
+    #     pass
     
-    def receive_requests(self):
-        """Receive requests from the server."""
-        pass
+    # def receive_requests(self):
+    #     """Receive requests from the server."""
+    #     pass
     
-    def process_input_requests(self, request: InputRequest):
-        """Process input requests."""
-        pass
+    # def process_input_requests(self, request: InputRequest):
+    #     """Process input requests."""
+    #     pass
     
-    def handle_generate_request(self, request: GenerateRequest):
-        """Handle generate request."""
-        pass
+    # def handle_generate_request(self, request: GenerateRequest):
+    #     """Handle generate request."""
+    #     pass
     
-    def _add_request_to_queue(self, request: Request):
-        """Add request to queue."""
-        pass
+    # def _add_request_to_queue(self, request: Request):
+    #     """Add request to queue."""
+    #     pass
     
-    def _extend_requests_queue(self, requests: List[Request]):
-        """Extend requests queue."""
-        pass
+    # def _extend_requests_queue(self, requests: List[Request]):
+    #     """Extend requests queue."""
+    #     pass
     
-    def get_next_batch_to_run(self):
-        """Get next batch to run."""
-        pass
+    # def get_next_batch_to_run(self):
+    #     """Get next batch to run."""
+    #     pass
     
-    def update_running_batch(self, batch_id: int, status: str):
-        """Update running batch."""
-        pass
+    # def update_running_batch(self, batch_id: int, status: str):
+    #     """Update running batch."""
+    #     pass
     
-    def run_batch(self, batch_id: int):
-        """Run batch."""
-        pass
+    # def run_batch(self, batch_id: int):
+    #     """Run batch."""
+    #     pass
     
-    def process_batch_result(self, batch_id: int):
-        """Process batch results."""
-        pass
+    # def process_batch_result(self, batch_id: int):
+    #     """Process batch results."""
+    #     pass
     
     
 def run_scheduler_process(
     server_args: ServerArgs,
-    gpu_id: int,
     pipe_writer,
 ):
     # Generate the prefix
@@ -96,7 +95,6 @@ def run_scheduler_process(
     try:
         scheduler = Scheduler(
             server_args,
-            gpu_id,
         )
         pipe_writer.send(
             {

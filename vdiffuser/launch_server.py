@@ -9,9 +9,7 @@ from vdiffuser.utils import kill_process_tree
 
 
 if __name__ == "__main__":
-    # server_args = prepare_server_args(sys.argv[1:])
-    server_args = {}
-    
+    server_args = prepare_server_args(sys.argv[1:])
     try:
         launch_server(server_args)
     finally:
