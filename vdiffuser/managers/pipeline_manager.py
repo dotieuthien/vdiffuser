@@ -1,3 +1,17 @@
+import dataclasses
+import logging
+import os
+import signal
+from collections import OrderedDict
+from typing import Dict, List, Union
+
+
+from vdiffuser.server_args import ServerArgs
+
+
+logger = logging.getLogger(__name__)
+
+
 class PipelineManager:
     """
     Centralized manager for image generate and edit templates.
@@ -10,4 +24,22 @@ class PipelineManager:
         pass
 
     def run(self):
+        pass
+
+
+def run_pipeline_process(
+    server_args: ServerArgs,
+):
+    # kill_itself_when_parent_died()
+    # setproctitle.setproctitle("sglang::detokenizer")
+    # configure_logger(server_args)
+    # parent_process = psutil.Process().parent()
+
+    try:
+        manager = PipelineManager(server_args)
+        manager.event_loop()
+    except Exception:
+        # traceback = get_exception_traceback()
+        # logger.error(f"PipelineManager hit an exception: {traceback}")
+        # parent_process.send_signal(signal.SIGQUIT)
         pass

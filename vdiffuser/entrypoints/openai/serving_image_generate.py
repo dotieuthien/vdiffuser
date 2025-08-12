@@ -17,7 +17,8 @@ from vdiffuser.entrypoints.openai.protocol import (
 )
 from vdiffuser.entrypoints.openai.serving_base import OpenAIServingBase
 from vdiffuser.managers.io_struct import GenerateReqInput
-from vdiffuser.managers.template_manager import TemplateManager
+from vdiffuser.managers.pipeline_manager import PipelineManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,9 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
 
     def __init__(
         self,
-        template_manager: TemplateManager,
+        pipeline_manager: PipelineManager,
     ):
-        self.template_manager = template_manager
+        self.pipeline_manager = pipeline_manager
 
     def _request_id_prefix(self) -> str:
         return "image_generate-"

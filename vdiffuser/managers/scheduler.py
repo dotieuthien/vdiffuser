@@ -18,17 +18,13 @@ import torch
 import zmq
 from torch.distributed import barrier
 
-
+from vdiffuser.server_args import ServerArgs
 class Scheduler:
     def __init__(
         self,
         server_args: ServerArgs,
-        port_args: PortArgs,
-        gpu_id: int,
     ):
         self.server_args = server_args
-        self.port_args = port_args
-        self.gpu_id = gpu_id
 
         # Init inter-process communication
         context = zmq.Context(2)
@@ -82,4 +78,35 @@ class Scheduler:
         pass
     
     
+def run_scheduler_process(
+    server_args: ServerArgs,
+    gpu_id: int,
+    pipe_writer,
+):
+    # Generate the prefix
+    prefix = ""
+
+    # Config the process
+    setproctitle.setproctitle(f"vdiffuser::scheduler{prefix.replace(' ', '_')}")
+    # faulthandler.enable()
+    # kill_itself_when_parent_died()
+    # parent_process = psutil.Process().parent()
+
+    # Create a scheduler and run the event loop
+    try:
+        scheduler = Scheduler(
+            server_args,
+            gpu_id,
+        )
+        pipe_writer.send(
+            {
+                "status": "ready",
+            }
+        )
+
+    except Exception:
+        # traceback = get_exception_traceback()
+        # logger.error(f"Scheduler hit an exception: {traceback}")
+        # parent_process.send_signal(signal.SIGQUIT)
+        pass
     

@@ -53,7 +53,7 @@ from vdiffuser.managers.io_struct import (
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromTensorReqInput,
 )
-from vdiffuser.managers.template_manager import TemplateManager
+from vdiffuser.managers.pipeline_manager import PipelineManager
 from vdiffuser.metrics.func_timer import enable_func_timer
 from vdiffuser.server_args import ServerArgs
 from vdiffuser.utils import (
@@ -77,7 +77,7 @@ HEALTH_CHECK_TIMEOUT = int(os.getenv("VDIFFUSER_HEALTH_CHECK_TIMEOUT", 20))
 # Store global states
 @dataclasses.dataclass
 class _GlobalState:
-    template_manager: TemplateManager
+    pipeline_manager: PipelineManager
     scheduler_info: Dict
 
 
@@ -93,10 +93,10 @@ def set_global_state(global_state: _GlobalState):
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
     fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
-        template_manager=_global_state.template_manager
+        pipeline_manager=_global_state.pipeline_manager
     )
     fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
-        template_manager=_global_state.template_manager
+        pipeline_manager=_global_state.pipeline_manager
     )
 
     server_args: ServerArgs = fast_api_app.server_args
@@ -701,6 +701,7 @@ async def retrieve_model(model: str):
         max_model_len=_global_state.tokenizer_manager.model_config.context_len,
     )
 
+
 def _create_error_response(e):
     return ORJSONResponse(
         {"error": {"message": str(e)}}, status_code=HTTPStatus.BAD_REQUEST
@@ -726,12 +727,12 @@ def launch_server(
     1. The HTTP server, Engine both run in the main process.
     2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
     """
-    template_manager, scheduler_info = _launch_subprocesses(
-        # server_args=server_args
+    pipeline_manager, scheduler_info = _launch_subprocesses(
+        server_args=server_args
     )
     set_global_state(
         _GlobalState(
-            template_manager=template_manager,
+            pipeline_manager=pipeline_manager,
             scheduler_info=scheduler_info,
         )
     )

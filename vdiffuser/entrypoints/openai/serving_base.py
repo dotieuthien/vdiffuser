@@ -9,6 +9,8 @@ from fastapi.responses import ORJSONResponse, StreamingResponse
 
 from vdiffuser.entrypoints.openai.protocol import ErrorResponse, OpenAIServingRequest
 from vdiffuser.managers.io_struct import GenerateReqInput
+from vdiffuser.managers.pipeline_manager import PipelineManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,8 @@ logger = logging.getLogger(__name__)
 class OpenAIServingBase(ABC):
     """Abstract base class for OpenAI endpoint handlers"""
 
-    def __init__(self):
-        pass
+    def __init__(self, pipeline_manager: PipelineManager):
+        self.pipeline_manager = pipeline_manager
 
     async def handle_request(
         self, request: OpenAIServingRequest, raw_request: Request
