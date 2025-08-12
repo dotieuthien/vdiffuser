@@ -8,7 +8,7 @@ import time
 from http import HTTPStatus
 from typing import Callable, Dict, Optional, List, Any
 
-# Fix a bug of Python threading
+# Fix a bug of Python threadings
 setattr(threading, "_register_atexit", lambda *args, **kwargs: None)
 
 from contextlib import asynccontextmanager
@@ -122,7 +122,7 @@ async def lifespan(fast_api_app: FastAPI):
 
 # Fast API
 app = FastAPI(
-    # lifespan=lifespan,
+    lifespan=lifespan,
     title="VDiffuser API",
     openapi_url=None if get_bool_env_var("DISABLE_OPENAPI_DOC") else "/openapi.json",
 )
@@ -718,9 +718,9 @@ def launch_server(
     The VDiffuser server consists of an HTTP server and an VDiffuser engine.
 
     - HTTP server: A FastAPI server that routes requests to the engine.
-    - The engine consists of three components:
-        1. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
-        2. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
+    - The engine consists of 4 components:
+        1. PipelineManager (subprocess)
+        2. GPU Scheduler (subprocess)
 
     Note:
     1. The HTTP server, Engine both run in the main process.
