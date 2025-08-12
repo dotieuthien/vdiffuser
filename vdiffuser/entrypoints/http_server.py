@@ -8,7 +8,7 @@ import time
 from http import HTTPStatus
 from typing import Callable, Dict, Optional, List, Any
 
-# Fix a bug of Python threading
+# Fix a bug of Python threadings
 setattr(threading, "_register_atexit", lambda *args, **kwargs: None)
 
 from contextlib import asynccontextmanager
@@ -53,7 +53,7 @@ from vdiffuser.managers.io_struct import (
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromTensorReqInput,
 )
-from vdiffuser.managers.template_manager import TemplateManager
+from vdiffuser.managers.pipeline_manager import PipelineManager
 from vdiffuser.metrics.func_timer import enable_func_timer
 from vdiffuser.server_args import ServerArgs
 from vdiffuser.utils import (
@@ -77,7 +77,7 @@ HEALTH_CHECK_TIMEOUT = int(os.getenv("VDIFFUSER_HEALTH_CHECK_TIMEOUT", 20))
 # Store global states
 @dataclasses.dataclass
 class _GlobalState:
-    template_manager: TemplateManager
+    pipeline_manager: PipelineManager
     scheduler_info: Dict
 
 
@@ -93,22 +93,22 @@ def set_global_state(global_state: _GlobalState):
 async def lifespan(fast_api_app: FastAPI):
     # Initialize OpenAI serving handlers
     fast_api_app.state.openai_serving_images_edit = OpenAIServingImagesEdit(
-        template_manager=_global_state.template_manager
+        pipeline_manager=_global_state.pipeline_manager
     )
     fast_api_app.state.openai_serving_images_generate = OpenAIServingImagesGenerate(
-        template_manager=_global_state.template_manager
+        pipeline_manager=_global_state.pipeline_manager
     )
 
     server_args: ServerArgs = fast_api_app.server_args
     
     
-    try:
-        from vdiffuser.entrypoints.openai.serving_responses import OpenAIServingResponses
-        fast_api_app.state.openai_serving_responses = OpenAIServingResponses()
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
+    # try:
+    #     from vdiffuser.entrypoints.openai.serving_responses import OpenAIServingResponses
+    #     fast_api_app.state.openai_serving_responses = OpenAIServingResponses()
+    # except Exception as e:
+    #     import traceback
+    #     traceback.print_exc()
+        # logger.warning(f"Can not initialize OpenAIServingResponses, error: {e}")
     
     # if server_args.warmups is not None:
     #     # await execute_warmups()
@@ -122,7 +122,7 @@ async def lifespan(fast_api_app: FastAPI):
 
 # Fast API
 app = FastAPI(
-    # lifespan=lifespan,
+    lifespan=lifespan,
     title="VDiffuser API",
     openapi_url=None if get_bool_env_var("DISABLE_OPENAPI_DOC") else "/openapi.json",
 )
@@ -701,6 +701,7 @@ async def retrieve_model(model: str):
         max_model_len=_global_state.tokenizer_manager.model_config.context_len,
     )
 
+
 def _create_error_response(e):
     return ORJSONResponse(
         {"error": {"message": str(e)}}, status_code=HTTPStatus.BAD_REQUEST
@@ -718,20 +719,20 @@ def launch_server(
     The VDiffuser server consists of an HTTP server and an VDiffuser engine.
 
     - HTTP server: A FastAPI server that routes requests to the engine.
-    - The engine consists of three components:
-        1. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
-        2. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
+    - The engine consists of 4 components:
+        1. PipelineManager (subprocess)
+        2. GPU Scheduler (subprocess)
 
     Note:
     1. The HTTP server, Engine both run in the main process.
     2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
     """
-    template_manager, scheduler_info = _launch_subprocesses(
-        # server_args=server_args
+    pipeline_manager, scheduler_info = _launch_subprocesses(
+        server_args=server_args
     )
     set_global_state(
         _GlobalState(
-            template_manager=template_manager,
+            pipeline_manager=pipeline_manager,
             scheduler_info=scheduler_info,
         )
     )
