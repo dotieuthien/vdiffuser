@@ -18,16 +18,40 @@ import torch
 import zmq
 from torch.distributed import barrier
 
-from vdiffuser.server_args import ServerArgs
+from vdiffuser.server_args import ServerArgs, PortArgs
+from vdiffuser.utils import (
+    kill_itself_when_parent_died, 
+    get_exception_traceback,
+    get_zmq_socket,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
 class Scheduler:
     def __init__(
         self,
         server_args: ServerArgs,
+        port_args: PortArgs,
     ):
         self.server_args = server_args
 
         # Init inter-process communication
         context = zmq.Context(2)
+        
+        self.recv_from_pipeline_manager = get_zmq_socket(
+            context, zmq.PULL, port_args.scheduler_input_ipc_name, False
+        )
+        
+        self.send_to_pipeline_manager = get_zmq_socket(
+            context, zmq.PUSH, port_args.pipeline_manager_ipc_name, False
+        )
+        
+        # self.tp_worker = TpWorker(
+        #     server_args=server_args,
+        #     nccl_port=port_args.nccl_port,
+        # )
         
     # def init_memory_pool_and_cache(self):
     #     """Initialize memory pool and cache."""
@@ -80,6 +104,7 @@ class Scheduler:
     
 def run_scheduler_process(
     server_args: ServerArgs,
+    port_args: PortArgs,
     pipe_writer,
 ):
     # Generate the prefix
@@ -87,14 +112,15 @@ def run_scheduler_process(
 
     # Config the process
     setproctitle.setproctitle(f"vdiffuser::scheduler{prefix.replace(' ', '_')}")
-    # faulthandler.enable()
-    # kill_itself_when_parent_died()
-    # parent_process = psutil.Process().parent()
+    faulthandler.enable()
+    kill_itself_when_parent_died()
+    parent_process = psutil.Process().parent()
 
     # Create a scheduler and run the event loop
     try:
         scheduler = Scheduler(
             server_args,
+            port_args,
         )
         pipe_writer.send(
             {
@@ -103,8 +129,7 @@ def run_scheduler_process(
         )
 
     except Exception:
-        # traceback = get_exception_traceback()
-        # logger.error(f"Scheduler hit an exception: {traceback}")
-        # parent_process.send_signal(signal.SIGQUIT)
-        pass
+        traceback = get_exception_traceback()
+        logger.error(f"Scheduler hit an exception: {traceback}")
+        parent_process.send_signal(signal.SIGQUIT)
     

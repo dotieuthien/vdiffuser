@@ -2948,3 +2948,9 @@ class ConcurrentCounter:
 @lru_cache(maxsize=1)
 def is_triton_kernels_available() -> bool:
     return importlib.util.find_spec("triton_kernels") is not None
+
+
+def get_exception_traceback():
+    etype, value, tb = sys.exc_info()
+    err_str = "".join(traceback.format_exception(etype, value, tb))
+    return err_str

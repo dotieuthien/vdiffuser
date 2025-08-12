@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vdiffusers"
 version = "0.0.1"
-description = "VDiffuser is a fast serving framework for large language models and vision language models."
+description = "VDiffuser is a high-performance inference server for diffusion models with OpenAI API compatibility."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
@@ -20,10 +20,6 @@ dependencies = [
     "numpy",
     "IPython",
     "setproctitle",
-]
-
-[project.optional-dependencies]
-all = [
     "blobfile==3.0.0",
     "build",
     "compressed-tensors",
@@ -62,31 +58,6 @@ all = [
     "torchvision",
     "cuda-python",
     "einops",
-]
-
-openai = ["openai>=1.0", "tiktoken"]
-anthropic = ["anthropic>=0.20.0"]
-litellm = ["litellm>=1.0.0"]
-torch_memory_saver = ["torch_memory_saver>=0.0.8"]
-test = [
-    "accelerate",
-    "jsonlines",
-    "matplotlib",
-    "pandas",
-    "peft",
-    "sentence_transformers",
-    "pytest",
-]
-
-[project.urls]
-"Homepage" = "https://github.com/sgl-project/sglang"
-"Bug Tracker" = "https://github.com/sgl-project/sglang/issues"
-
-[tool.setuptools.package-data]
-"sglang" = [
-    "srt/layers/moe/fused_moe_triton/configs/*/*.json",
-    "srt/layers/quantization/configs/*.json",
-    "srt/mem_cache/storage/hf3fs/hf3fs_utils.cpp",
 ]
 
 [tool.setuptools.packages.find]
