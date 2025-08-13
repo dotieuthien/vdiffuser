@@ -54,7 +54,7 @@ def _launch_subprocesses(
     scheduler_proc.start()
 
     # Launch pipeline process
-    pipeline_manager = PipelineManager(server_args)
+    pipeline_manager = PipelineManager(server_args, port_args)
 
-    pipeline_manager, scheduler_info = None, None
+    pipeline_manager, scheduler_info = pipeline_manager, None
     return pipeline_manager, scheduler_info

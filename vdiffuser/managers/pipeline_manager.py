@@ -1,16 +1,28 @@
+import asyncio
 import dataclasses
 import logging
 import os
+import time
 import signal
 from collections import OrderedDict
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 
+import fastapi
 
-from vdiffuser.server_args import ServerArgs
+import zmq
+import zmq.asyncio
+
+from vdiffuser.server_args import ServerArgs, PortArgs
 from vdiffuser.hf_diffusers_utils import (
     get_pipeline,
 )
 
+from vdiffuser.utils import (
+    get_zmq_socket,
+)
+from vdiffuser.managers.io_struct import (
+    GenerateReqInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +35,7 @@ class PipelineManager:
     eliminating the need for global variables and providing a clean
     interface for image generate and edit management.
     """
-    def __init__(self, server_args: ServerArgs):
+    def __init__(self, server_args: ServerArgs, port_args: PortArgs):
         # Init inter-process communication
         context = zmq.asyncio.Context(2)
         self.recv_from_scheduler = get_zmq_socket(
@@ -33,6 +45,9 @@ class PipelineManager:
             context, zmq.PUSH, port_args.scheduler_input_ipc_name, True
         )
         
+        # Request states
+        self.no_create_loop = False
+        
         # Read model args
         self.model_path = server_args.model_path
         self.pipeline = server_args.pipeline
@@ -41,22 +56,46 @@ class PipelineManager:
             server_args.model_path,
         )
         
-    def generate_request(
+    async def generate_request(
         self,
-        obj,
-        created_time: Optional[float] = None,
+        obj: GenerateReqInput,
+        request: Optional[fastapi.Request] = None,
     ):
-        pass
+        created_time = time.time()
+        print("Generating image...")
+        image = self.pipeline(obj.text).images[0]
+        return image
+        
+    # def auto_create_handle_loop(self):
+    #     if self.no_create_loop:
+    #         return
 
-    def _send_one_request(
-        self, 
-        obj,
-        created_time: Optional[float] = None,
-    ):
-        self.send_to_scheduler.send_json(request)
+    #     self.no_create_loop = True
+    #     loop = asyncio.get_event_loop()
+    #     self.asyncio_tasks.add(
+    #         loop.create_task(print_exception_wrapper(self.handle_loop))
+    #     )
 
-    def _receive_one_request(self) -> dict:
-        return self.recv_from_scheduler.recv_json()
+    #     self.event_loop = loop
+
+    #     # We cannot add signal handler when the tokenizer manager is not in
+    #     # the main thread due to the CPython limitation.
+    #     if threading.current_thread() is threading.main_thread():
+    #         signal_handler = SignalHandler(self)
+    #         loop.add_signal_handler(signal.SIGTERM, signal_handler.sigterm_handler)
+    #         # Update the signal handler for the process. It overrides the sigquit handler in the launch phase.
+    #         loop.add_signal_handler(
+    #             signal.SIGQUIT, signal_handler.running_phase_sigquit_handler
+    #         )
+    #     else:
+    #         logger.warning(
+    #             "Signal handler is not added because the tokenizer manager is "
+    #             "not in the main thread. This disables graceful shutdown of the "
+    #             "tokenizer manager when SIGTERM is received."
+    #         )
+    #     self.asyncio_tasks.add(
+    #         loop.create_task(print_exception_wrapper(self.sigterm_watchdog))
+    #     )
 
 
 def run_pipeline_process(
