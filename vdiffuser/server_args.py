@@ -594,7 +594,7 @@ class ServerArgs:
             "--model",
             type=str,
             help="The path of the model weights. This can be a local folder or a Hugging Face repo ID.",
-            required=False,
+            required=True,
         )
         parser.add_argument(
             "--pipeline",

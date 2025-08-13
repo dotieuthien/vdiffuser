@@ -1,6 +1,9 @@
 import asyncio
 import logging
 import time
+import base64
+from PIL import Image
+from io import BytesIO
 from typing import Any, AsyncGenerator, Dict, List, Union
 
 from fastapi import Request
@@ -21,9 +24,6 @@ from vdiffuser.managers.pipeline_manager import PipelineManager
 
 
 logger = logging.getLogger(__name__)
-
-# A base64 encoded 1x1 red pixel PNG
-DUMMY_B64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAwAB/epv2AAAAABJRU5ErkJggg=="
 
 
 class OpenAIServingImagesGenerate(OpenAIServingBase):
@@ -121,12 +121,17 @@ class OpenAIServingImagesGenerate(OpenAIServingBase):
         raw_request: Request,
     ) -> Union[ImageGenerationResponse, ErrorResponse, ORJSONResponse]:
         """Handle non-streaming image generation request"""
+        image = await self.pipeline_manager.generate_request(adapted_request)
         
-        await asyncio.sleep(0.1) # Simulate work
+        # convert PIL Image to base64
+        buffer = BytesIO()
+        image_rgb = image.convert("RGB")
+        image_rgb.save(buffer, format="PNG")
+        image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
         
-        n_images = request.n or 1
+        n_images = 1
         
-        data = [ImageResponseData(b64_json=DUMMY_B64_IMAGE) for _ in range(n_images)]
+        data = [ImageResponseData(b64_json=image_base64) for _ in range(n_images)]
         usage = ImageUsageInfo(total_tokens=10 * n_images, input_tokens=5 * n_images, output_tokens=5 * n_images)
 
         return ImageGenerationResponse(

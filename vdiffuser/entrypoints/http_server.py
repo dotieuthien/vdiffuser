@@ -595,7 +595,6 @@ async def parse_function_call_request(obj: ParseFunctionCallReq, request: Reques
     return ORJSONResponse(content=response_data, status_code=200)
 
 
-
 @app.post("/pause_generation")
 async def pause_generation(request: Request):
     """Pause generation."""
