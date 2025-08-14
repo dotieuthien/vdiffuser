@@ -18,10 +18,6 @@ pipeline = None
 
 router = APIRouter(prefix="/benchmark", tags=["benchmark"])
 
-@router.get("/health")
-def health():
-    return {"status": "ok", "pipeline_loaded": pipeline is not None}
-
 @router.post("/generate", response_model=GenerateResponse)
 def generate(req: GenerateRequest):    
     if pipeline is None:
