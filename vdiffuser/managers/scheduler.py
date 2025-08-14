@@ -24,6 +24,10 @@ from vdiffuser.utils import (
     get_exception_traceback,
     get_zmq_socket,
 )
+from vdiffuser.managers.shared_gpu_memory import (
+    create_shared_tensor,
+    read_shared_tensor,
+)
 from vdiffuser.managers.tp_worker import TpWorker
 
 
@@ -51,7 +55,6 @@ class Scheduler:
         
         self.tp_worker = TpWorker(
             server_args=server_args,
-            # nccl_port=port_args.nccl_port,
         )
         
     # def init_memory_pool_and_cache(self):
@@ -63,8 +66,8 @@ class Scheduler:
         while True:
             try:
                 recv_req = self.recv_from_pipeline_manager.recv_pyobj(zmq.NOBLOCK)
-                request_id, created_time = recv_req
-                print(f"Scheduler received a request id {request_id} that created at {created_time}")
+                print(f"Scheduler received request: {recv_req}")
+                
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting
                 time.sleep(0.001)  # 1ms sleep

@@ -9,10 +9,10 @@ from vdiffuser.utils import is_remote_url
 def get_pipeline(
     pipeline_name: str,
     model_path: str,
-    *args,
     trust_remote_code: bool = False,
     revision: Optional[str] = None,
     torch_dtype: Optional[str] = "auto",
+    just_pipeline: bool = False,
     **kwargs,
 ) -> Any:
     """Gets a diffusion pipeline for the given model name via Hugging Face Diffusers.
@@ -55,11 +55,20 @@ def get_pipeline(
         )
 
     try:
-        # Load the specific pipeline class
-        pipeline = pipeline_class.from_pretrained(
-            model_name_or_path,
-            torch_dtype=torch_dtype,
-        ).to("cuda")
+        if just_pipeline:
+            pipeline = pipeline_class.from_pretrained(
+                model_name_or_path,
+                unet=None,
+                text_encoder=None,
+                text_encoder_2=None,
+                vae=None,
+                torch_dtype=torch_dtype,
+            ).to("cuda")
+        else:
+            pipeline = pipeline_class.from_pretrained(
+                model_name_or_path,
+                torch_dtype=torch_dtype,
+            ).to("cuda")
     except Exception as e:
         err_msg = (
             f"Failed to load the diffusion pipeline '{pipeline_name}' from '{model_name_or_path}'. "
