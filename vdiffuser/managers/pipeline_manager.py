@@ -4,6 +4,7 @@ import logging
 import os
 import time
 import signal
+import uuid
 from collections import OrderedDict
 from typing import Dict, List, Union, Optional
 
@@ -39,7 +40,7 @@ class PipelineManager:
         # Init inter-process communication
         context = zmq.asyncio.Context(2)
         self.recv_from_scheduler = get_zmq_socket(
-            context, zmq.PULL, port_args.scheduler_input_ipc_name, True
+            context, zmq.PULL, port_args.pipeline_manager_ipc_name, True
         )
         self.send_to_scheduler = get_zmq_socket(
             context, zmq.PUSH, port_args.scheduler_input_ipc_name, True
@@ -56,14 +57,24 @@ class PipelineManager:
             server_args.model_path,
         )
         
+    def _send_one_request(
+        self,
+        request_id: str,
+        created_time: Optional[float] = None,
+    ):
+        self.send_to_scheduler.send_pyobj((request_id, created_time))
+        
     async def generate_request(
         self,
         obj: GenerateReqInput,
         request: Optional[fastapi.Request] = None,
     ):
+        # create a request id
+        request_id = str(uuid.uuid4())
         created_time = time.time()
         print("Generating image...")
-        image = self.pipeline(obj.text).images[0]
+        self._send_one_request(request_id, created_time)
+        image = self.pipeline(obj.text, num_inference_steps=20).images[0]
         return image
         
     # def auto_create_handle_loop(self):
