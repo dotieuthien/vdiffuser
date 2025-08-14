@@ -17,3 +17,4 @@ class GenerateResponse(BaseModel):
     guidance_scale: float
     width: int
     height: int
+    model_params: Optional[int] = None

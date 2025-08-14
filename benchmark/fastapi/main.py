@@ -1,102 +1,124 @@
-from __future__ import annotations
-
+import asyncio
 import logging
-import time
+import os
+import random
+import tempfile
+import traceback
+
+import psutil
 import torch
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
 from diffusers import StableDiffusionXLPipeline
 from schemas import GenerateRequest, GenerateResponse
-from utils import benchmark_fn, flush
+from utils import benchmark_fn, flush, calculate_params
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CKPT_ID = "stabilityai/stable-diffusion-xl-base-1.0"
-NUM_WARMUP_RUNS = 3
 
-pipeline = None
+class TextToImagePipeline:
+    pipeline: StableDiffusionXLPipeline = None
+    device: str = None
 
-router = APIRouter(prefix="/benchmark", tags=["benchmark"])
+    def start(self):
+        logger.info("Loading CUDA")
+        self.device = "cuda"
+        self.pipeline = StableDiffusionXLPipeline.from_pretrained(
+            CKPT_ID,
+            torch_dtype=torch.bfloat16,
+        ).to(device=self.device)
 
-@router.post("/generate", response_model=GenerateResponse)
-def generate(req: GenerateRequest):    
-    if pipeline is None:
-        raise RuntimeError("Pipeline not initialized. Please restart the server.")
-    
-    flush()
-    
-    def generate_image():
-        return pipeline(
-            prompt=req.prompt,
-            negative_prompt=req.negative_prompt,
-            num_inference_steps=req.num_inference_steps,
-            guidance_scale=req.guidance_scale,
-            width=req.width,
-            height=req.height,
-        ).images[0]
-    
-    time_s = benchmark_fn(generate_image)
-    
-    mem_gb = torch.cuda.max_memory_allocated() / (1024**3)
-    mem_gb = round(mem_gb, 2)
-    
-    return GenerateResponse(
-        prompt=req.prompt,
-        time_s=time_s,
-        mem_gb=mem_gb,
-        num_inference_steps=req.num_inference_steps,
-        guidance_scale=req.guidance_scale,
-        width=req.width,
-        height=req.height,
-    )
 
-def load_and_warmup_pipeline():
-    global pipeline
-    
-    logger.info("Loading pipeline: %s", CKPT_ID)
-    start_time = time.time()
-    
-    pipeline = StableDiffusionXLPipeline.from_pretrained(
-        CKPT_ID,
-        torch_dtype=torch.float16,
-        use_safetensors=True,
-        variant="fp16"
-    )
-    pipeline = pipeline.to("cuda")
-    
-    load_time = time.time() - start_time
-    logger.info("Pipeline loaded in %.2fs", load_time)
-    
-    logger.info("Starting warmup with %d runs...", NUM_WARMUP_RUNS)
-    warmup_prompt = "a simple test image"
-    
-    warmup_start = time.time()
-    for i in range(NUM_WARMUP_RUNS):
-        logger.info("Warmup run %d/%d", i+1, NUM_WARMUP_RUNS)
-        with torch.no_grad():
-            _ = pipeline(
-                prompt=warmup_prompt,
-                num_inference_steps=10,
-                width=512,
-                height=512,
-            ).images[0]
-        flush()
-    
-    warmup_time = time.time() - warmup_start
-    logger.info("Warmup completed in %.2fs", warmup_time)
-    logger.info("Pipeline ready for benchmarking!")
+app = FastAPI()
 
-app = FastAPI(
-    title="Diffusers FastAPI Benchmark", 
-    description="FastAPI benchmark server for diffusion models",
-    openapi_url="/fastapi/openapi.json"
+shared_pipeline = TextToImagePipeline()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app.include_router(router)
 
 @app.on_event("startup")
-async def startup_event():
-    load_and_warmup_pipeline()
+def startup():
+    shared_pipeline.start()
+
+@app.post("/benchmark/generate")
+async def benchmark_generate(request: GenerateRequest) -> GenerateResponse:
+    try:
+        flush()
+        
+        torch.cuda.reset_peak_memory_stats()
+        start_memory = psutil.Process().memory_info().rss / (1024**3)  # GB
+        
+        loop = asyncio.get_event_loop()
+        
+        scheduler = shared_pipeline.pipeline.scheduler.from_config(
+            shared_pipeline.pipeline.scheduler.config
+        )
+        pipeline = StableDiffusionXLPipeline.from_pipe(
+            shared_pipeline.pipeline, scheduler=scheduler
+        )
+        
+        model_params = calculate_params(pipeline.unet) if hasattr(pipeline, 'unet') else None
+        
+        generator = torch.Generator(device=shared_pipeline.device)
+        generator.manual_seed(random.randint(0, 10000000))
+        
+        def _generate():
+            return pipeline(
+                prompt=request.prompt,
+                negative_prompt=request.negative_prompt,
+                num_inference_steps=request.num_inference_steps,
+                guidance_scale=request.guidance_scale,
+                width=request.width,
+                height=request.height,
+                generator=generator
+            )
+        
+        generation_time = await loop.run_in_executor(
+            None, 
+            lambda: benchmark_fn(_generate)
+        )
+        
+        output = await loop.run_in_executor(None, _generate)
+        
+        end_memory = psutil.Process().memory_info().rss / (1024**3)  # GB
+        peak_gpu_memory = torch.cuda.max_memory_allocated() / (1024**3)  # GB
+        memory_used = max(peak_gpu_memory, end_memory - start_memory)
+        
+        logger.info(
+            f"Generated image in {generation_time:.3f}s, "
+            f"memory: {memory_used:.2f}GB, "
+            f"model params: {f'{model_params:,}' if model_params is not None else 'N/A'}"
+        )
+        
+        return GenerateResponse(
+            prompt=request.prompt,
+            time_s=generation_time,
+            mem_gb=memory_used,
+            num_inference_steps=request.num_inference_steps,
+            guidance_scale=request.guidance_scale,
+            width=request.width,
+            height=request.height,
+            model_params=model_params
+        )
+        
+    except Exception as e:
+        logger.error(f"Generation failed after {generation_time:.2f}s: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Generation failed: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
