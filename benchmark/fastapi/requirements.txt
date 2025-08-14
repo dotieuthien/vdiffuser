@@ -1,0 +1,8 @@
+fastapi[all]
+diffusers
+transformers
+scipy
+ftfy
+accelerate
+pydantic
+uvicorn
