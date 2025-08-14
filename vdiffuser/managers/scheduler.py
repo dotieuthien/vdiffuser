@@ -58,9 +58,17 @@ class Scheduler:
     #     """Initialize memory pool and cache."""
     #     pass
 
-    # def event_loop(self):
-    #     """Event loop."""
-    #     pass
+    def event_loop_normal(self):
+        """A normal scheduler loop."""
+        while True:
+            try:
+                recv_req = self.recv_from_pipeline_manager.recv_pyobj(zmq.NOBLOCK)
+                request_id, created_time = recv_req
+                print(f"Scheduler received a request id {request_id} that created at {created_time}")
+            except zmq.Again:
+                # No message available, sleep briefly to avoid busy waiting
+                time.sleep(0.001)  # 1ms sleep
+                continue
 
     # def event_looop_overlap(self):
     #     """Run the scheduler."""
@@ -128,6 +136,8 @@ def run_scheduler_process(
                 "status": "ready",
             }
         )
+        
+        scheduler.event_loop_normal()
 
     except Exception:
         traceback = get_exception_traceback()

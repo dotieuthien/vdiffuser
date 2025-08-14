@@ -55,7 +55,6 @@ def get_pipeline(
         )
 
     try:
-        print("Load pipeline ", pipeline_class)
         # Load the specific pipeline class
         pipeline = pipeline_class.from_pretrained(
             model_name_or_path,
