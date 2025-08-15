@@ -29,6 +29,7 @@ from vdiffuser.managers.io_struct import (
 from vdiffuser.managers.shared_gpu_memory import (
     create_shared_tensor,
     read_shared_tensor,
+    create_shared_dict,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,16 +40,22 @@ class ModelClient:
         self,
         send_to_scheduler,
         recv_from_scheduler,
+        input_shared_dict,
+        output_shared_dict,
+        model_name: Union["tokenizer_2", "text_encoder", "unet", "vae", None] = None,
     ):
         self.send_to_scheduler = send_to_scheduler
         self.recv_from_scheduler = recv_from_scheduler
+        self.input_shared_dict = input_shared_dict
+        self.output_shared_dict = output_shared_dict
+        self.model_name = model_name
         
     def _send_one_request(
         self,
         keys_in_shared_memory: List[str],
     ):
         print(f"ModelClient sending request {keys_in_shared_memory}")
-        self.send_to_scheduler.send_pyobj(keys_in_shared_memory)
+        self.send_to_scheduler.send_pyobj((self.model_name, keys_in_shared_memory))
 
     def __call__(self, *args, **kwargs):
         print("#"*100)
@@ -61,14 +68,24 @@ class ModelClient:
         # save in GPU memory pool
         for i, arg in enumerate(args):
             if isinstance(arg, torch.Tensor):
-                create_shared_tensor(f"{request_id}_arg_{i}", arg)
+                create_shared_tensor(self.input_shared_dict, f"{request_id}_arg_{i}", arg)
                 keys_in_shared_memory.append(f"{request_id}_arg_{i}")
         for key, value in kwargs.items():
             if isinstance(value, torch.Tensor):
-                create_shared_tensor(f"{request_id}_kwarg_{key}", value)
+                create_shared_tensor(self.input_shared_dict, f"{request_id}_kwarg_{key}", value)
                 keys_in_shared_memory.append(f"{request_id}_kwarg_{key}")
                 
         self._send_one_request(keys_in_shared_memory)
+        
+        while True:
+            try:
+                recv_req = self.recv_from_scheduler.recv_pyobj(zmq.NOBLOCK)
+                print(f"ModelClient received from scheduler: {recv_req}")
+            except zmq.Again:
+                # No message available, sleep briefly to avoid busy waiting
+                time.sleep(0.001)  # 1ms sleep
+                continue
+            
         # wait for 10 seconds
         time.sleep(10)
 
@@ -81,9 +98,26 @@ class PipelineManager:
     eliminating the need for global variables and providing a clean
     interface for image generate and edit management.
     """
-    def __init__(self, server_args: ServerArgs, port_args: PortArgs):
+    def __init__(
+        self, 
+        server_args: ServerArgs, 
+        port_args: PortArgs, 
+        input_shared_dict=None,
+        output_shared_dict=None,
+    ):
         self.server_args = server_args
         self.port_args = port_args
+        
+        # Use provided shared dictionary or create a new one for multi-process tensor sharing
+        if input_shared_dict is not None:
+            self.input_shared_dict = input_shared_dict
+        else:
+            self.input_shared_dict = create_shared_dict()
+            
+        if output_shared_dict is not None:
+            self.output_shared_dict = output_shared_dict
+        else:
+            self.output_shared_dict = create_shared_dict()
         
         # Init inter-process communication
         context = zmq.asyncio.Context(2)
@@ -116,14 +150,23 @@ class PipelineManager:
         self.pipeline.text_encoder = ModelClient(
             self.send_to_scheduler,
             self.recv_from_scheduler,
+            self.input_shared_dict,
+            self.output_shared_dict,
+            "text_encoder",
         )
         self.pipeline.unet = ModelClient(
             self.send_to_scheduler,
             self.recv_from_scheduler,
+            self.input_shared_dict,
+            self.output_shared_dict,
+            "unet",
         )
         self.pipeline.vae = ModelClient(
             self.send_to_scheduler,
             self.recv_from_scheduler,
+            self.input_shared_dict,
+            self.output_shared_dict,
+            "vae",
         )
         
     def _send_one_request(
@@ -188,6 +231,8 @@ class PipelineManager:
 
 def run_pipeline_process(
     server_args: ServerArgs,
+    port_args: PortArgs = None,
+    shared_dict=None,
 ):
     # kill_itself_when_parent_died()
     # setproctitle.setproctitle("sglang::detokenizer")
@@ -195,7 +240,7 @@ def run_pipeline_process(
     # parent_process = psutil.Process().parent()
 
     try:
-        manager = PipelineManager(server_args)
+        manager = PipelineManager(server_args, port_args, shared_dict)
         manager.event_loop()
     except Exception:
         # traceback = get_exception_traceback()
