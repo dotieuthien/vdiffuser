@@ -81,6 +81,9 @@ class ModelClient:
             try:
                 recv_req = self.recv_from_scheduler.recv_pyobj(zmq.NOBLOCK)
                 print(f"ModelClient received from scheduler: {recv_req}")
+                request_id, keys_out_shared_memory = recv_req
+                print(f"ModelClient received from scheduler: {request_id}, {keys_out_shared_memory}")
+                break
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting
                 time.sleep(0.001)  # 1ms sleep
@@ -120,7 +123,7 @@ class PipelineManager:
             self.output_shared_dict = create_shared_dict()
         
         # Init inter-process communication
-        context = zmq.asyncio.Context(2)
+        context = zmq.Context(2)
         self.recv_from_scheduler = get_zmq_socket(
             context, zmq.PULL, port_args.pipeline_manager_ipc_name, True
         )

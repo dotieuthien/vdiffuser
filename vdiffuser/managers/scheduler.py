@@ -5,6 +5,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 from collections import deque
 from concurrent import futures
 from dataclasses import dataclass
@@ -96,9 +97,11 @@ class Scheduler:
                     # save the output tensors to the output shared dictionary
                     request_id = str(uuid.uuid4())
                     keys_out_shared_memory = []
-                    for i, tensor in enumerate(output_tensors):
-                        create_shared_tensor(self.output_shared_dict, f"{request_id}_output_{i}", tensor)
-                        keys_out_shared_memory.append(f"{request_id}_output_{i}")
+                    for key, tensor in output_tensors.items():
+                        print("#"*100)
+                        print(len(tensor))
+                        create_shared_tensor(self.output_shared_dict, f"{request_id}_{key}", tensor)
+                        keys_out_shared_memory.append(f"{request_id}_{key}")
                         
                     self.send_to_pipeline_manager.send_pyobj((request_id, keys_out_shared_memory))
                     

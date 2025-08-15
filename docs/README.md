@@ -15,6 +15,17 @@ pip install -e .
 ## Start the server
 
 ```bash
-# Launch the vdiffuser server with FLUX.1-dev model
+# Launch the vdiffuser server
 python -m vdiffuser.launch_server --model GraydientPlatformAPI/boltning-hyperd-sdxl --pipeline StableDiffusionXLPipeline
 ```
+
+## Dev
+```bash
+# Current code still has some bugs
+# It will create a lot of processes but cannot collect
+# Get all processes
+ps -ef | grep python
+# And
+pkill -9 python
+```
+
