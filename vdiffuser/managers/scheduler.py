@@ -5,6 +5,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 from collections import deque
 from concurrent import futures
 from dataclasses import dataclass
@@ -24,6 +25,12 @@ from vdiffuser.utils import (
     get_exception_traceback,
     get_zmq_socket,
 )
+from vdiffuser.managers.shared_gpu_memory import (
+    create_shared_tensor,
+    create_shared_tensor_tuple,
+    read_shared_tensor,
+    read_shared_tensor_tuple,
+)
 from vdiffuser.managers.tp_worker import TpWorker
 
 
@@ -35,8 +42,14 @@ class Scheduler:
         self,
         server_args: ServerArgs,
         port_args: PortArgs,
+        input_shared_dict=None,
+        output_shared_dict=None,
     ):
         self.server_args = server_args
+
+        # Use provided shared dictionary for multi-process tensor sharing
+        self.input_shared_dict = input_shared_dict
+        self.output_shared_dict = output_shared_dict
 
         # Init inter-process communication
         context = zmq.Context(2)
@@ -51,7 +64,6 @@ class Scheduler:
         
         self.tp_worker = TpWorker(
             server_args=server_args,
-            # nccl_port=port_args.nccl_port,
         )
         
     # def init_memory_pool_and_cache(self):
@@ -63,8 +75,49 @@ class Scheduler:
         while True:
             try:
                 recv_req = self.recv_from_pipeline_manager.recv_pyobj(zmq.NOBLOCK)
-                request_id, created_time = recv_req
-                print(f"Scheduler received a request id {request_id} that created at {created_time}")
+                print(f"Scheduler received request: {recv_req}")
+                
+                model_name, keys_in_shared_memory = recv_req
+                print(f"Scheduler received request: {model_name}, {keys_in_shared_memory}")
+                # If the request contains tensor keys, read the shared tensors
+                if isinstance(keys_in_shared_memory, list) and self.input_shared_dict is not None:
+                    # This is a list of tensor keys from ModelClient
+                    tensors = {}
+                    for tensor_key in keys_in_shared_memory:
+                        tensor = read_shared_tensor(self.input_shared_dict, tensor_key)
+                        if tensor is not None:
+                            tensors[tensor_key] = tensor
+                            print(f"Scheduler read shared tensor: {tensor_key}, shape: {tensor.shape}, device: {tensor.device}")
+                        else:
+                            print(f"Scheduler could not find tensor: {tensor_key}")
+                    
+                    # Process the tensors here
+                    # You can add your tensor processing logic here
+                    print(f"Scheduler loaded {len(tensors)} tensors for processing")
+                    output_tensors = self.tp_worker(model_name, tensor)
+                    
+                    # save the output tensors to the output shared dictionary
+                    request_id = str(uuid.uuid4())
+                    keys_out_shared_memory = []
+                    for key, tensor in output_tensors.items():
+                        if isinstance(tensor, tuple):
+                            create_shared_tensor_tuple(self.output_shared_dict, f"{request_id}_{key}", tensor)
+                            keys_out_shared_memory.append(f"{request_id}_{key}")
+                        else:
+                            create_shared_tensor(self.output_shared_dict, f"{request_id}_{key}", tensor)
+                            keys_out_shared_memory.append(f"{request_id}_{key}")
+                        
+                    self.send_to_pipeline_manager.send_pyobj((request_id, keys_out_shared_memory))
+                    
+                    
+                elif isinstance(recv_req, tuple) and len(recv_req) == 2:
+                    # This is a (request_id, created_time) tuple from PipelineManager
+                    request_id, created_time = recv_req
+                    print(f"Scheduler received pipeline request: {request_id} created at {created_time}")
+                    
+                    # Process the pipeline request here
+                    # You can add your pipeline processing logic here
+                
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting
                 time.sleep(0.001)  # 1ms sleep
@@ -115,6 +168,8 @@ def run_scheduler_process(
     server_args: ServerArgs,
     port_args: PortArgs,
     pipe_writer,
+    input_shared_dict=None,
+    output_shared_dict=None,
 ):
     # Generate the prefix
     prefix = ""
@@ -130,6 +185,8 @@ def run_scheduler_process(
         scheduler = Scheduler(
             server_args,
             port_args,
+            input_shared_dict,
+            output_shared_dict,
         )
         pipe_writer.send(
             {
