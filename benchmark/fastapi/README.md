@@ -90,3 +90,15 @@ Headless example (no UI), for 10 users, spawn rate 2 users/sec, duration 5 minut
 locust -f locustfile.py --host http://localhost:8000 \
   --headless -u 10 -r 2 -t 5m --csv fastapi_bench
 ```
+
+### Benchmark Results
+
+The following charts show the performance characteristics of the SDXL FastAPI server under various load conditions:
+
+#### Performance Statistics
+![Performance Statistics](results/statictis.png)
+
+#### Performance Charts  
+![Performance Charts](results/charts.png)
+
+These results demonstrate the end-to-end latency, throughput, and resource utilization of the Stable Diffusion XL pipeline when served through the FastAPI endpoint.
