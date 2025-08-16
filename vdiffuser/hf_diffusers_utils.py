@@ -58,15 +58,14 @@ def get_pipeline(
         if just_pipeline:
             pipeline = pipeline_class.from_pretrained(
                 model_name_or_path,
-                unet=None,
                 text_encoder=None,
-                text_encoder_2=None,
-                vae=None,
                 torch_dtype=torch_dtype,
             ).to("cuda")
         else:
             pipeline = pipeline_class.from_pretrained(
                 model_name_or_path,
+                unet=None,
+                vae=None,
                 torch_dtype=torch_dtype,
             ).to("cuda")
     except Exception as e:

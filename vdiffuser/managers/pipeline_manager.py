@@ -15,6 +15,8 @@ import zmq.asyncio
 
 import torch
 
+from transformers.modeling_outputs import BaseModelOutputWithPooling
+
 from vdiffuser.server_args import ServerArgs, PortArgs
 from vdiffuser.hf_diffusers_utils import (
     get_pipeline,
@@ -28,7 +30,9 @@ from vdiffuser.managers.io_struct import (
 )
 from vdiffuser.managers.shared_gpu_memory import (
     create_shared_tensor,
+    create_shared_tensor_tuple,
     read_shared_tensor,
+    read_shared_tensor_tuple,
     create_shared_dict,
 )
 
@@ -80,17 +84,35 @@ class ModelClient:
         while True:
             try:
                 recv_req = self.recv_from_scheduler.recv_pyobj(zmq.NOBLOCK)
-                print(f"ModelClient received from scheduler: {recv_req}")
                 request_id, keys_out_shared_memory = recv_req
-                print(f"ModelClient received from scheduler: {request_id}, {keys_out_shared_memory}")
                 break
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting
                 time.sleep(0.001)  # 1ms sleep
                 continue
             
-        # wait for 10 seconds
-        time.sleep(10)
+        for key in keys_out_shared_memory:
+            # assign tensor to text_encoder_output
+            if "last_hidden_state" in key:
+                last_hidden_state = read_shared_tensor(self.output_shared_dict, key)
+            elif "pooler_output" in key:
+                pooler_output = read_shared_tensor(self.output_shared_dict, key)
+            elif "hidden_states" in key:
+                hidden_states = read_shared_tensor_tuple(self.output_shared_dict, key)
+                hidden_states = list(hidden_states)
+                for i, hidden_state in enumerate(hidden_states):
+                    hidden_states[i] = hidden_state.to(device="cuda")
+                
+                hidden_states = tuple(hidden_states)
+                
+        text_encoder_output = BaseModelOutputWithPooling(
+            last_hidden_state=last_hidden_state.to(device="cuda"),
+            pooler_output=pooler_output.to(device="cuda"),
+            hidden_states=hidden_states,
+        )
+                
+        return text_encoder_output
+                
 
 
 class PipelineManager:
@@ -156,20 +178,6 @@ class PipelineManager:
             self.input_shared_dict,
             self.output_shared_dict,
             "text_encoder",
-        )
-        self.pipeline.unet = ModelClient(
-            self.send_to_scheduler,
-            self.recv_from_scheduler,
-            self.input_shared_dict,
-            self.output_shared_dict,
-            "unet",
-        )
-        self.pipeline.vae = ModelClient(
-            self.send_to_scheduler,
-            self.recv_from_scheduler,
-            self.input_shared_dict,
-            self.output_shared_dict,
-            "vae",
         )
         
     def _send_one_request(

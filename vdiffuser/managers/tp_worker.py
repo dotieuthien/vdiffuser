@@ -29,6 +29,7 @@ class TpWorker:
             input_ids=input_ids.to(self.text_encoder.device),
             output_hidden_states=True,
         )
+        print(type(output))
         return output
     
     def _call_diffusion_model(self, *args, **kwargs):

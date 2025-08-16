@@ -27,7 +27,9 @@ from vdiffuser.utils import (
 )
 from vdiffuser.managers.shared_gpu_memory import (
     create_shared_tensor,
+    create_shared_tensor_tuple,
     read_shared_tensor,
+    read_shared_tensor_tuple,
 )
 from vdiffuser.managers.tp_worker import TpWorker
 
@@ -98,10 +100,12 @@ class Scheduler:
                     request_id = str(uuid.uuid4())
                     keys_out_shared_memory = []
                     for key, tensor in output_tensors.items():
-                        print("#"*100)
-                        print(len(tensor))
-                        create_shared_tensor(self.output_shared_dict, f"{request_id}_{key}", tensor)
-                        keys_out_shared_memory.append(f"{request_id}_{key}")
+                        if isinstance(tensor, tuple):
+                            create_shared_tensor_tuple(self.output_shared_dict, f"{request_id}_{key}", tensor)
+                            keys_out_shared_memory.append(f"{request_id}_{key}")
+                        else:
+                            create_shared_tensor(self.output_shared_dict, f"{request_id}_{key}", tensor)
+                            keys_out_shared_memory.append(f"{request_id}_{key}")
                         
                     self.send_to_pipeline_manager.send_pyobj((request_id, keys_out_shared_memory))
                     
