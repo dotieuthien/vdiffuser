@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import dataclasses
 import logging
 import os
@@ -58,7 +59,7 @@ class ModelClient:
         self,
         keys_in_shared_memory: List[str],
     ):
-        print(f"ModelClient sending request {keys_in_shared_memory}")
+        print(f"ModelClient {self.model_name} sending request {keys_in_shared_memory}")
         self.send_to_scheduler.send_pyobj((self.model_name, keys_in_shared_memory))
 
     def __call__(self, *args, **kwargs):
@@ -179,6 +180,7 @@ class PipelineManager:
             self.output_shared_dict,
             "text_encoder",
         )
+        self.thread_pool = ThreadPoolExecutor()
         
     def _send_one_request(
         self,
@@ -193,20 +195,31 @@ class PipelineManager:
         obj: GenerateReqInput,
         request: Optional[fastapi.Request] = None,
     ):
-        print("Generating image...")
         # create a request id
         request_id = str(uuid.uuid4())
         created_time = time.time()
-        print("Generating image...")
+        print(f"Generating image with request id {request_id} that created at {created_time}")
         self._send_one_request(request_id, created_time)
         
-        # Enable classifier-free guidance with guidance_scale > 1.0
-        image = self.pipeline(
-            obj.text, 
-            num_inference_steps=20,
-            guidance_scale=7.5  # Standard CFG value for stable diffusion
-        ).images[0]
-        return image
+        def generate_image():
+            # Enable classifier-free guidance with guidance_scale > 1.0
+            return self.pipeline(
+                obj.text, 
+                num_inference_steps=10,
+                guidance_scale=7.5  # Standard CFG value for stable diffusion
+            ).images[0]
+
+        try:
+            # Run the blocking function in the thread pool
+            loop = asyncio.get_running_loop()
+            image = await loop.run_in_executor(
+                self.thread_pool,
+                generate_image
+            )
+            return image
+        except Exception as e:
+            print(f"Error generating image: {e}")
+            raise
         
     # def auto_create_handle_loop(self):
     #     if self.no_create_loop:

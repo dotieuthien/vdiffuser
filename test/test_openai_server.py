@@ -34,12 +34,14 @@ async def test_single_request():
 async def generate_single_image(request_id):
     """Generate a single image and return the result with request ID"""
     start_time = time.time()
+    print(f"hihi {request_id}")
     
     result = await client.images.generate(
         model="auto",
         prompt=f"{prompt} (Request {request_id})"
     )
     
+    print(f"done {request_id}")
     end_time = time.time()
     
     image_base64 = result.data[0].b64_json
