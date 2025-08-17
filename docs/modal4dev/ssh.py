@@ -8,7 +8,7 @@ TIMEOUT_SECONDS = 3600 * 8  # 1 hour
 SSH_PUBLIC_KEY_PATH = "id_rsa.pub"
 GPU = "l4"
 CPU = 8
-MOUNT_ROOT_DIR = "/workspace_sgl"
+MOUNT_ROOT_DIR = "/workspace"
 MODEL_CACHE_PATH = "/cache"
 
 # Initialize Modal app
@@ -21,7 +21,7 @@ flavor = "devel"  # includes full CUDA toolkit
 operating_sys = "ubuntu22.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
-model_volume = modal.Volume.from_name("sglang", create_if_missing=True)
+model_volume = modal.Volume.from_name("workspace", create_if_missing=True)
 model_cache_volume = modal.Volume.from_name("model-cache", create_if_missing=True)
 
 # Create base image with SSH server and TensorRT components
