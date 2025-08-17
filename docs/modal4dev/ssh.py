@@ -23,12 +23,11 @@ tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
 model_volume = modal.Volume.from_name("sglang", create_if_missing=True)
 model_cache_volume = modal.Volume.from_name("model-cache", create_if_missing=True)
-SGLANG_VERSION = "v0.4.6.post5-cu124"
 
 # Create base image with SSH server and TensorRT components
 image = (
     modal.Image.from_registry(
-		f"lmsysorg/sglang:{SGLANG_VERSION}",
+		f"nvidia/cuda:12.8.1-devel-ubuntu22.04",
 		setup_dockerfile_commands=["RUN ln -s /usr/bin/python3 /usr/bin/python"],
   add_python="3.12"
 	)
@@ -43,13 +42,6 @@ image = (
         "curl"
     )
     .run_commands("mkdir -p /run/sshd")
-    .pip_install(
-		"hf-transfer",
-		"grpclib",
-		"requests",
-		# install vllm for the Marlin kernels
-		"vllm==0.8.4",  # but v0.8.5 incompatible with latest SGLang
-	)
     .env({"HF_HUB_CACHE": MODEL_CACHE_PATH, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
     .entrypoint([])
     .add_local_file(SSH_PUBLIC_KEY_PATH, "/root/.ssh/authorized_keys")  # Add this line
