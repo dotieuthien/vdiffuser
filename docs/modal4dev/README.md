@@ -67,7 +67,7 @@ If you need to support multiple users or keys:
 - **Timeout**: 8 hours (configurable via `TIMEOUT_SECONDS`)
 
 ### Volumes Mounted
-- `/workspace_sgl`: Main workspace volume
+- `/workspace`: Main workspace volume
 - `/cache`: Model cache for HuggingFace models
 
 ## Customization
