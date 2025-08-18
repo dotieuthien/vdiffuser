@@ -166,6 +166,14 @@ class PipelineManager:
             just_pipeline=True,
         )
         
+        def patch_scheduler(scheduler):
+            if hasattr(scheduler, '_step_index') or hasattr(scheduler, 'step_index'):
+                from diffusers import DDIMScheduler
+                return DDIMScheduler.from_config(self.pipeline.scheduler.config)
+            return scheduler
+        
+        self.pipeline.scheduler = patch_scheduler(self.pipeline.scheduler)
+        
         self.pipeline.__class__ = type(
             "PatchedPipeline",
             (self.pipeline.__class__,),
