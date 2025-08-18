@@ -25,7 +25,7 @@ from vdiffuser.utils import (
     get_exception_traceback,
     get_zmq_socket,
 )
-from vdiffuser.managers.shared_gpu_memory import (
+from vdiffuser.managers.torch_shared_tensors import (
     create_shared_tensor,
     create_shared_tensor_tuple,
     read_shared_tensor,

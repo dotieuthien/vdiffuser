@@ -29,7 +29,7 @@ from vdiffuser.utils import (
 from vdiffuser.managers.io_struct import (
     GenerateReqInput,
 )
-from vdiffuser.managers.shared_gpu_memory import (
+from vdiffuser.managers.torch_shared_tensors import (
     create_shared_tensor,
     create_shared_tensor_tuple,
     read_shared_tensor,
