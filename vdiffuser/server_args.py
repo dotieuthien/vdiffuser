@@ -2257,10 +2257,29 @@ def auto_choose_speculative_params(self: ServerArgs):
         return (5, 4, 8)
     
 def main() -> None:
-    server_args = prepare_server_args(sys.argv[1:])
-    from vdiffuser.entrypoints.http_server import launch_server
+    argv = sys.argv[1:]
+    if len(argv) == 0 or argv[0].startswith("-"):
+        argv = ["serve", *argv]
 
-    try:
-        launch_server(server_args)
-    except KeyboardInterrupt:
-        pass
+    top_parser = argparse.ArgumentParser(prog="vdiffuser")
+    subparsers = top_parser.add_subparsers(dest="command", required=True)
+
+    serve_parser = subparsers.add_parser("serve", help="Launch the VDiffuser server")
+    ServerArgs.add_cli_args(serve_parser)
+
+    subparsers.add_parser("version", help="Show version and exit")
+
+    ns = top_parser.parse_args(argv)
+
+    if ns.command == "version":
+        from vdiffuser.version import __version__
+        print(__version__)
+        return
+
+    if ns.command == "serve":
+        server_args = ServerArgs.from_cli_args(ns)
+        from vdiffuser.entrypoints.http_server import launch_server
+        try:
+            launch_server(server_args)
+        except KeyboardInterrupt:
+            pass
