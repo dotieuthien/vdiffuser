@@ -63,6 +63,9 @@ dependencies = [
     "accelerate",
 ]
 
+[project.scripts]
+vdiffuser = "vdiffuser.server_args:main"
+
 [tool.setuptools.packages.find]
 exclude = [
     "assets*",

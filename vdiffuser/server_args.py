@@ -2255,3 +2255,12 @@ def auto_choose_speculative_params(self: ServerArgs):
     else:
         # The default value for all other models
         return (5, 4, 8)
+    
+def main() -> None:
+    server_args = prepare_server_args(sys.argv[1:])
+    from vdiffuser.entrypoints.http_server import launch_server
+
+    try:
+        launch_server(server_args)
+    except KeyboardInterrupt:
+        pass
