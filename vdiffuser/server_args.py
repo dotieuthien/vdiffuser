@@ -97,15 +97,22 @@ class ServerArgs:
     # json_model_override_args: str = "{}"
     # preferred_sampling_params: Optional[str] = None
 
-    # # # LoRA
-    # # enable_lora: Optional[bool] = None
-    # # max_lora_rank: Optional[int] = None
-    # # lora_target_modules: Optional[Union[set[str], List[str]]] = None
-    # # lora_paths: Optional[Union[dict[str, str], dict[str, LoRARef], List[str]]] = None
-    # # max_loaded_loras: Optional[int] = None
-    # # max_loras_per_batch: int = 8
-    # # lora_backend: str = "triton"
+    # LoRA
+    enable_lora: Optional[bool] = None
+    max_lora_rank: Optional[int] = None
+    lora_target_modules: Optional[Union[set[str], List[str]]] = None
+    lora_paths: Optional[Union[dict[str, str], List[str]]] = None
+    # max_loaded_loras: Optional[int] = None
+    # max_loras_per_batch: int = 8
+    # lora_backend: str = "triton"
 
+    # IP-Adapter
+    enable_ipadapter: Optional[bool] = None
+    ipadapter_paths: Optional[List[str]] = None
+
+    # ControlNet
+    enable_controlnet: Optional[bool] = None
+    controlnet_paths: Optional[List[str]] = None
     # # # Kernel backend
     # # attention_backend: Optional[str] = None
     # # decode_attention_backend: Optional[str] = None
@@ -1170,37 +1177,37 @@ class ServerArgs:
         #     help="json-formatted sampling settings that will be returned in /get_model_info",
         # )
 
-        # # LoRA
-        # parser.add_argument(
-        #     "--enable-lora",
-        #     default=ServerArgs.enable_lora,
-        #     action="store_true",
-        #     help="Enable LoRA support for the model. This argument is automatically set to True if `--lora-paths` is provided for backward compatibility.",
-        # )
-        # parser.add_argument(
-        #     "--max-lora-rank",
-        #     default=ServerArgs.max_lora_rank,
-        #     type=int,
-        #     help="The maximum rank of LoRA adapters. If not specified, it will be automatically inferred from the adapters provided in --lora-paths.",
-        # )
-        # parser.add_argument(
-        #     "--lora-target-modules",
-        #     type=str,
-        #     choices=SUPPORTED_LORA_TARGET_MODULES + [LORA_TARGET_ALL_MODULES],
-        #     nargs="*",
-        #     default=None,
-        #     help="The union set of all target modules where LoRA should be applied. If not specified, "
-        #     "it will be automatically inferred from the adapters provided in --lora-paths. If 'all' is specified, "
-        #     "all supported modules will be targeted.",
-        # )
-        # parser.add_argument(
-        #     "--lora-paths",
-        #     type=str,
-        #     nargs="*",
-        #     default=None,
-        #     action=LoRAPathAction,
-        #     help="The list of LoRA adapters. You can provide a list of either path in str or renamed path in the format {name}={path}.",
-        # )
+        # LoRA
+        parser.add_argument(
+            "--enable-lora",
+            default=ServerArgs.enable_lora,
+            action="store_true",
+            help="Enable LoRA support for the model. This argument is automatically set to True if `--lora-paths` is provided for backward compatibility.",
+        )
+        parser.add_argument(
+            "--max-lora-rank",
+            default=ServerArgs.max_lora_rank,
+            type=int,
+            help="The maximum rank of LoRA adapters. If not specified, it will be automatically inferred from the adapters provided in --lora-paths.",
+        )
+        parser.add_argument(
+            "--lora-target-modules",
+            type=str,
+            # choices=SUPPORTED_LORA_TARGET_MODULES + [LORA_TARGET_ALL_MODULES],
+            nargs="*",
+            default=None,
+            help="The union set of all target modules where LoRA should be applied. If not specified, "
+            "it will be automatically inferred from the adapters provided in --lora-paths. If 'all' is specified, "
+            "all supported modules will be targeted.",
+        )
+        parser.add_argument(
+            "--lora-paths",
+            type=str,
+            nargs="*",
+            default=None,
+            action=LoRAPathAction,
+            help="The list of LoRA adapters. You can provide a list of either path in str or renamed path in the format {name}={path}.",
+        )
         # parser.add_argument(
         #     "--max-loras-per-batch",
         #     type=int,
@@ -1219,6 +1226,36 @@ class ServerArgs:
         #     default="triton",
         #     help="Choose the kernel backend for multi-LoRA serving.",
         # )
+
+        # IP-Adapter
+        parser.add_argument(
+            "--enable-ipadapter",
+            default=ServerArgs.enable_ipadapter,
+            action="store_true",
+            help="Enable IP-Adapter support for the model.",
+        )
+        parser.add_argument(
+            "--ipadapter-paths",
+            type=str,
+            nargs="*",
+            default=None,
+            help="The list of IP-Adapter adapters. You can provide a list of either path in str or renamed path in the format {name}={path}.",
+        )
+
+        # ControlNet
+        parser.add_argument(
+            "--enable-controlnet",
+            default=ServerArgs.enable_controlnet,
+            action="store_true",
+            help="Enable ControlNet support for the model.",
+        )
+        parser.add_argument(
+            "--controlnet-paths",
+            type=str,
+            nargs="*",
+            default=None,
+            help="The list of ControlNet adapters. You can provide a list of either path in str or renamed path in the format {name}={path}.",
+        )
 
         # # Kernel backend
         # parser.add_argument(
@@ -1862,9 +1899,10 @@ class ServerArgs:
         # args.dp_size = args.data_parallel_size
         # args.ep_size = args.expert_parallel_size
 
-        # attrs = [attr.name for attr in dataclasses.fields(cls)]
-        attrs = ["model_path", "pipeline"]
-        return cls(**{attr: getattr(args, attr) for attr in attrs})
+        attrs = [attr.name for attr in dataclasses.fields(cls)]
+        kwargs = {attr: getattr(args, attr) for attr in attrs}
+            
+        return cls(**kwargs)
 
     def url(self):
         if is_valid_ipv6_address(self.host):
