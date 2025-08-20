@@ -10,7 +10,7 @@ import asyncio
 import atexit
 import dataclasses
 import logging
-import multiprocessing as mp
+import torch.multiprocessing as mp
 import os
 import signal
 import threading
@@ -23,7 +23,7 @@ from PIL.Image import Image
 from vdiffuser.server_args import ServerArgs, PortArgs
 from vdiffuser.managers.pipeline_manager import PipelineManager, run_pipeline_process
 from vdiffuser.managers.scheduler import run_scheduler_process
-from vdiffuser.managers.shared_gpu_memory import create_shared_dict
+from vdiffuser.managers.torch_shared_tensors import create_shared_dict
 
 
 # Fix a bug of Python threading
@@ -34,30 +34,30 @@ logger = logging.getLogger(__name__)
 def _launch_subprocesses(
     server_args: ServerArgs, port_args: Optional[PortArgs] = None
 ) -> Tuple[PipelineManager, Dict]:
-    # Configure global environment
-    
-    #
+    mp.set_start_method("spawn", force=True)
 
     # Allocate ports for inter-process communications
     if port_args is None:
         port_args = PortArgs.init_new(server_args)
         logger.info(f"{server_args=}")
 
-    # Create shared dictionary for multi-process tensor sharing
-    input_shared_dict = create_shared_dict()
-    output_shared_dict = create_shared_dict()
-    logger.info("Created shared dictionary for multi-process tensor sharing")
+    ctx = mp.get_context("spawn")
+    
+    # Data-plane queues 
+    in_q = ctx.Queue(maxsize=128)
+    out_q = ctx.Queue(maxsize=128)
 
     pipe_reader, pipe_writer = mp.Pipe(duplex=False)
+    
     # Launch scheduler process
-    scheduler_proc = mp.Process(
+    scheduler_proc = ctx.Process(
         target=run_scheduler_process,
         args=(
             server_args,
             port_args,
             pipe_writer,
-            input_shared_dict,
-            output_shared_dict,
+            in_q,
+            out_q,
         ),
     )
     
@@ -74,7 +74,7 @@ def _launch_subprocesses(
         # Close the pipe writer to prevent broken pipe errors
         pipe_writer.close()
 
-    # Launch pipeline manager with shared dictionary
-    pipeline_manager = PipelineManager(server_args, port_args, input_shared_dict, output_shared_dict)
+    # Launch pipeline manager
+    pipeline_manager = PipelineManager(server_args, port_args, in_q, out_q)
 
     return pipeline_manager, scheduler_info
