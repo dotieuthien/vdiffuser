@@ -2,7 +2,6 @@ import torch
 import torch.multiprocessing as mp
 from typing import Dict, Optional, Tuple
 
-# Remove global storage - now use shared dictionary passed as parameter
 
 def create_shared_dict() -> Dict:
     """Create a shared dictionary for multi-process tensor sharing"""

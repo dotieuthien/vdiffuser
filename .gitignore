@@ -164,14 +164,14 @@ datasets/
 *.arrow
 
 # Images and media
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.webp
-*.svg
+# *.jpg
+# *.jpeg
+# *.png
+# *.gif
+# *.bmp
+# *.tiff
+# *.webp
+# *.svg
 *.mp4
 *.avi
 *.mov

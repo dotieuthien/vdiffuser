@@ -29,7 +29,7 @@ from vdiffuser.utils import (
 from vdiffuser.managers.io_struct import (
     GenerateReqInput,
 )
-from vdiffuser.managers.shared_gpu_memory import (
+from vdiffuser.managers.torch_shared_tensors import (
     create_shared_tensor,
     create_shared_tensor_tuple,
     read_shared_tensor,
@@ -45,14 +45,16 @@ class ModelClient:
         self,
         send_to_scheduler,
         recv_from_scheduler,
-        input_shared_dict,
-        output_shared_dict,
+        input_shared_queue,
+        output_shared_queue,
         model_name: Union["tokenizer_2", "text_encoder", "unet", "vae", None] = None,
     ):
         self.send_to_scheduler = send_to_scheduler
         self.recv_from_scheduler = recv_from_scheduler
-        self.input_shared_dict = input_shared_dict
-        self.output_shared_dict = output_shared_dict
+        
+        self.input_shared_queue = input_shared_queue
+        self.output_shared_queue = output_shared_queue
+        
         self.model_name = model_name
         
     def _send_one_request(
@@ -66,40 +68,57 @@ class ModelClient:
         print("#"*100)
         # create a request id
         request_id = str(uuid.uuid4())
-        created_time = time.time()
         
-        keys_in_shared_memory = []
+        shared_input_tensor_keys = []
         
-        # save in GPU memory pool
+        # get all input tensors from args and kwargs
         for i, arg in enumerate(args):
             if isinstance(arg, torch.Tensor):
-                create_shared_tensor(self.input_shared_dict, f"{request_id}_arg_{i}", arg)
-                keys_in_shared_memory.append(f"{request_id}_arg_{i}")
-        for key, value in kwargs.items():
-            if isinstance(value, torch.Tensor):
-                create_shared_tensor(self.input_shared_dict, f"{request_id}_kwarg_{key}", value)
-                keys_in_shared_memory.append(f"{request_id}_kwarg_{key}")
+                # push input tensors via data queue (CUDA IPC) 
+                self.input_shared_queue.put((f"{request_id}_arg_{i}", arg))
+                shared_input_tensor_keys.append(f"{request_id}_arg_{i}")
+        for key, arg in kwargs.items():
+            if isinstance(arg, torch.Tensor):
+                self.input_shared_queue.put((f"{request_id}_kwarg_{key}", arg))
+                shared_input_tensor_keys.append(f"{request_id}_kwarg_{key}")
                 
-        self._send_one_request(keys_in_shared_memory)
+        # send keys of input tensors to scheduler
+        self._send_one_request(shared_input_tensor_keys)
         
         while True:
             try:
                 recv_req = self.recv_from_scheduler.recv_pyobj(zmq.NOBLOCK)
-                request_id, keys_out_shared_memory = recv_req
+                request_id, shared_output_tensor_keys = recv_req
                 break
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting
                 time.sleep(0.001)  # 1ms sleep
                 continue
             
-        for key in keys_out_shared_memory:
+        tensors = {}
+        for key in shared_output_tensor_keys:
+            def blocking_get():
+                return self.output_shared_queue.get()
+            
+            # wait for the tensor to be available
+            while key not in tensors.keys():
+                rid, tensor = blocking_get()
+                tensors[rid] = tensor
+                print("#"*100)
+                if isinstance(tensor, torch.Tensor):
+                    print(f"PipelineManager received tensor shape and device: {tensor.shape}, {tensor.device}")
+                elif isinstance(tensor, tuple):
+                    for t in tensor:
+                        print(f"PipelineManager received tensor shape and device: {t.shape}, {t.device}")
+                
+        for key, tensor in tensors.items():
             # assign tensor to text_encoder_output
             if "last_hidden_state" in key:
-                last_hidden_state = read_shared_tensor(self.output_shared_dict, key)
+                last_hidden_state = tensor
             elif "pooler_output" in key:
-                pooler_output = read_shared_tensor(self.output_shared_dict, key)
+                pooler_output = tensor
             elif "hidden_states" in key:
-                hidden_states = read_shared_tensor_tuple(self.output_shared_dict, key)
+                hidden_states = tensor
                 hidden_states = list(hidden_states)
                 for i, hidden_state in enumerate(hidden_states):
                     hidden_states[i] = hidden_state.to(device="cuda")
@@ -111,9 +130,10 @@ class ModelClient:
             pooler_output=pooler_output.to(device="cuda"),
             hidden_states=hidden_states,
         )
+        
+        self._send_one_request("done")
                 
         return text_encoder_output
-                
 
 
 class PipelineManager:
@@ -128,22 +148,14 @@ class PipelineManager:
         self, 
         server_args: ServerArgs, 
         port_args: PortArgs, 
-        input_shared_dict=None,
-        output_shared_dict=None,
+        input_shared_queue=None,
+        output_shared_queue=None,
     ):
         self.server_args = server_args
         self.port_args = port_args
         
-        # Use provided shared dictionary or create a new one for multi-process tensor sharing
-        if input_shared_dict is not None:
-            self.input_shared_dict = input_shared_dict
-        else:
-            self.input_shared_dict = create_shared_dict()
-            
-        if output_shared_dict is not None:
-            self.output_shared_dict = output_shared_dict
-        else:
-            self.output_shared_dict = create_shared_dict()
+        self.input_shared_queue = input_shared_queue
+        self.output_shared_queue = output_shared_queue
         
         # Init inter-process communication
         context = zmq.Context(2)
@@ -181,11 +193,12 @@ class PipelineManager:
                 "do_classifier_free_guidance": property(lambda self: True)
             }
         )
+        
         self.pipeline.text_encoder = ModelClient(
             self.send_to_scheduler,
             self.recv_from_scheduler,
-            self.input_shared_dict,
-            self.output_shared_dict,
+            self.input_shared_queue,
+            self.output_shared_queue,
             "text_encoder",
         )
         self.thread_pool = ThreadPoolExecutor()
@@ -206,7 +219,7 @@ class PipelineManager:
         # create a request id
         request_id = str(uuid.uuid4())
         created_time = time.time()
-        print(f"Generating image with request id {request_id} that created at {created_time}")
+        
         self._send_one_request(request_id, created_time)
         
         def generate_image():

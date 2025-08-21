@@ -25,7 +25,7 @@ from vdiffuser.utils import (
     get_exception_traceback,
     get_zmq_socket,
 )
-from vdiffuser.managers.shared_gpu_memory import (
+from vdiffuser.managers.torch_shared_tensors import (
     create_shared_tensor,
     create_shared_tensor_tuple,
     read_shared_tensor,
@@ -37,19 +37,37 @@ from vdiffuser.managers.tp_worker import TpWorker
 logger = logging.getLogger(__name__)
 
 
+class InputTensors:
+    """Hold CUDA tensors alive by req_id until an explicit release."""
+    def __init__(self):
+        self._store: Dict[str, Tuple[torch.Tensor, ...]] = {}
+
+    def put(self, req_id: str, tensors: Tuple[torch.Tensor, ...]):
+        for t in tensors:
+            if not (isinstance(t, torch.Tensor) and t.is_cuda):
+                raise ValueError("All tensors must be CUDA tensors")
+        self._store[req_id] = tensors
+
+    def release(self, req_id: str):
+        self._store.pop(req_id, None)
+
+    def clear(self):
+        self._store.clear()
+       
+
 class Scheduler:
     def __init__(
         self,
         server_args: ServerArgs,
         port_args: PortArgs,
-        input_shared_dict=None,
-        output_shared_dict=None,
+        input_shared_queue=None,
+        output_shared_queue=None,
     ):
         self.server_args = server_args
 
         # Use provided shared dictionary for multi-process tensor sharing
-        self.input_shared_dict = input_shared_dict
-        self.output_shared_dict = output_shared_dict
+        self.input_shared_queue = input_shared_queue
+        self.output_shared_queue = output_shared_queue
 
         # Init inter-process communication
         context = zmq.Context(2)
@@ -75,21 +93,22 @@ class Scheduler:
         while True:
             try:
                 recv_req = self.recv_from_pipeline_manager.recv_pyobj(zmq.NOBLOCK)
-                print(f"Scheduler received request: {recv_req}")
+                model_name, shared_input_tensor_keys = recv_req
+                print(f"Scheduler received request: {model_name}, {shared_input_tensor_keys}")
                 
-                model_name, keys_in_shared_memory = recv_req
-                print(f"Scheduler received request: {model_name}, {keys_in_shared_memory}")
-                # If the request contains tensor keys, read the shared tensors
-                if isinstance(keys_in_shared_memory, list) and self.input_shared_dict is not None:
-                    # This is a list of tensor keys from ModelClient
+                if isinstance(shared_input_tensor_keys, list) and self.input_shared_queue is not None:
                     tensors = {}
-                    for tensor_key in keys_in_shared_memory:
-                        tensor = read_shared_tensor(self.input_shared_dict, tensor_key)
-                        if tensor is not None:
-                            tensors[tensor_key] = tensor
-                            print(f"Scheduler read shared tensor: {tensor_key}, shape: {tensor.shape}, device: {tensor.device}")
-                        else:
-                            print(f"Scheduler could not find tensor: {tensor_key}")
+                    
+                    for tensor_key in shared_input_tensor_keys:
+                        def blocking_get():
+                            return self.input_shared_queue.get()
+                        
+                        # wait for the tensor to be available
+                        while tensor_key not in tensors.keys():
+                            rid, tensor = blocking_get()
+                            tensors[rid] = tensor
+                            print("#"*100)
+                            print(f"Scheduler received tensor shape and device: {tensor.shape}, {tensor.device}")
                     
                     # Process the tensors here
                     # You can add your tensor processing logic here
@@ -98,25 +117,42 @@ class Scheduler:
                     
                     # save the output tensors to the output shared dictionary
                     request_id = str(uuid.uuid4())
-                    keys_out_shared_memory = []
+                    shared_output_tensor_keys = []
                     for key, tensor in output_tensors.items():
                         if isinstance(tensor, tuple):
-                            create_shared_tensor_tuple(self.output_shared_dict, f"{request_id}_{key}", tensor)
-                            keys_out_shared_memory.append(f"{request_id}_{key}")
+                            tensor_tuple = []
+                            for i, t in enumerate(tensor):
+                                if isinstance(t, torch.Tensor):
+                                    t = t.detach().cpu()
+                                    tensor_tuple.append(t)
+                            tensor = tuple(tensor_tuple)
+                            self.output_shared_queue.put((f"{request_id}_{key}", tensor))
+                            shared_output_tensor_keys.append(f"{request_id}_{key}")
                         else:
-                            create_shared_tensor(self.output_shared_dict, f"{request_id}_{key}", tensor)
-                            keys_out_shared_memory.append(f"{request_id}_{key}")
+                            self.output_shared_queue.put((f"{request_id}_{key}", tensor.detach()))
+                            shared_output_tensor_keys.append(f"{request_id}_{key}")
                         
-                    self.send_to_pipeline_manager.send_pyobj((request_id, keys_out_shared_memory))
+                    self.send_to_pipeline_manager.send_pyobj((request_id, shared_output_tensor_keys))
+
+                    while True:
+                        try:
+                            recv_req = self.recv_from_pipeline_manager.recv_pyobj(zmq.NOBLOCK)
+                            print(f"Scheduler received done message: {recv_req}")
+                            if recv_req[1] == "done":
+                                break
+                        except zmq.Again:
+                            # No message available, sleep briefly to avoid busy waiting
+                            time.sleep(0.001)  # 1ms sleep
+                            continue
                     
                     
-                elif isinstance(recv_req, tuple) and len(recv_req) == 2:
-                    # This is a (request_id, created_time) tuple from PipelineManager
-                    request_id, created_time = recv_req
-                    print(f"Scheduler received pipeline request: {request_id} created at {created_time}")
+                # elif isinstance(recv_req, tuple) and len(recv_req) == 2:
+                #     # This is a (request_id, created_time) tuple from PipelineManager
+                #     request_id, created_time = recv_req
+                #     print(f"Scheduler received pipeline request: {request_id} created at {created_time}")
                     
-                    # Process the pipeline request here
-                    # You can add your pipeline processing logic here
+                #     # Process the pipeline request here
+                #     # You can add your pipeline processing logic here
                 
             except zmq.Again:
                 # No message available, sleep briefly to avoid busy waiting

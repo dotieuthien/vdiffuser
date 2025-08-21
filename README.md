@@ -41,17 +41,8 @@ vdiffuser serve --model GraydientPlatformAPI/boltning-hyperd-sdxl --pipeline Sta
 
 - `vdiffuser serve`: Launch the HTTP server
   - Required:
-    - `--model` (alias: `--model-path`): HF repo ID or local path
+    - `--model`: HF repo ID or local path
     - `--pipeline`: Diffusers pipeline class name
-  - Optional (adapters):
-    - `--enable-lora`
-    - `--max-lora-rank INT`
-    - `--lora-target-modules [MODULE ...]`
-    - `--lora-paths NAME=PATH` or `PATH` (repeatable)
-    - `--enable-ipadapter`
-    - `--ipadapter-paths PATH [PATH ...]`
-    - `--enable-controlnet`
-    - `--controlnet-paths PATH [PATH ...]`
 
 - `vdiffuser version`: Show package version
 
@@ -63,13 +54,6 @@ Notes:
 ```bash
 # Start server
 vdiffuser serve --model GraydientPlatformAPI/boltning-hyperd-sdxl --pipeline StableDiffusionXLPipeline
-
-# With LoRA
-vdiffuser serve --model <MODEL> --pipeline StableDiffusionXLPipeline \
-  --enable-lora \
-  --lora-paths style1=/path/style1.safetensors style2=/path/style2.safetensors \
-  --max-lora-rank 16 \
-  --lora-target-modules all
 
 # Help
 vdiffuser serve -h
